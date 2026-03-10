@@ -1,5 +1,6 @@
-from src.agents.crisis_detector import (detect_crisis, detect_crisis_with_llm,
-                                        should_escalate)
+from src.features.crisis_detector import (detect_crisis,
+                                          detect_crisis_with_llm,
+                                          should_escalate)
 
 
 def main():

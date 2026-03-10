@@ -1,7 +1,9 @@
 import os
 
-from src.agents.crisis_detector import (detect_crisis, detect_crisis_with_llm,
-                                        send_sos_alert, should_escalate)
+from src.features.crisis_detector import (detect_crisis,
+                                          detect_crisis_with_llm,
+                                          send_sos_alert, should_escalate)
+from src.features.location_service import get_device_location
 
 
 def example_keyword_detection_with_sos():

@@ -2,9 +2,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.agents.crisis_detector import (CrisisReport, SOSAlert, detect_crisis,
-                                        detect_crisis_with_llm, send_sos_alert,
-                                        should_escalate)
+from src.features.crisis_detector import (CrisisReport, SOSAlert,
+                                          detect_crisis,
+                                          detect_crisis_with_llm,
+                                          send_sos_alert, should_escalate)
 
 
 def test_send_sos_alert_mock():
@@ -32,7 +33,7 @@ def test_send_sos_alert_mock():
     assert alert.alert_id is not None
 
 
-@patch('src.agents.crisis_detector.boto3.client')
+@patch('src.features.crisis_detector.boto3.client')
 def test_send_sos_alert_sns_success(mock_boto_client):
     mock_sns = Mock()
     mock_boto_client.return_value = mock_sns
@@ -59,7 +60,7 @@ def test_send_sos_alert_sns_success(mock_boto_client):
     mock_sns.publish.assert_called_once()
 
 
-@patch('src.agents.crisis_detector.boto3.client')
+@patch('src.features.crisis_detector.boto3.client')
 def test_send_sos_alert_sns_no_topic(mock_boto_client):
     report = CrisisReport(
         urgency_level="critical",
@@ -80,7 +81,7 @@ def test_send_sos_alert_sns_no_topic(mock_boto_client):
     assert alert.status == "no_topic_configured"
 
 
-@patch('src.agents.crisis_detector.boto3.client')
+@patch('src.features.crisis_detector.boto3.client')
 def test_send_sos_alert_sns_failure(mock_boto_client):
     mock_sns = Mock()
     mock_sns.publish.side_effect = Exception("SNS Error")
@@ -105,7 +106,7 @@ def test_send_sos_alert_sns_failure(mock_boto_client):
     assert alert.status == "sns_failed"
 
 
-@patch('src.agents.crisis_detector.boto3.client')
+@patch('src.features.crisis_detector.boto3.client')
 def test_detect_crisis_with_llm_success(mock_boto_client):
     mock_bedrock = Mock()
     mock_response = {
@@ -137,7 +138,7 @@ def test_detect_crisis_with_llm_success(mock_boto_client):
     assert report.detection_mode == "llm"
 
 
-@patch('src.agents.crisis_detector.boto3.client')
+@patch('src.features.crisis_detector.boto3.client')
 def test_detect_crisis_with_llm_fallback(mock_boto_client):
     mock_boto_client.side_effect = Exception("Bedrock Error")
 

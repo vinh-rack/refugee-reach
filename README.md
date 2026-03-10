@@ -1,8 +1,34 @@
-# Anh Tường đọc nha
+# RefugeeReach
 
-Dưới đây sẽ là instructions để dùng từng feat.
+> anh Tường nhớ đọc khúc đầu nhé
+
+AI-powered crisis response and aid location system for refugees using Amazon Nova agents.
 
 See `examples/` directory for usage demonstrations.
+
+First Install Dependencies
+```bash
+pip install -r src/requirements.txt
+```
+
+Then configure Environment by copying `.env.example` to `.env` and add your credentials:
+```
+NOVA_API_KEY=your_nova_api_key
+NOVA_ORCHESTRATOR_AGENT_ID=
+NOVA_SOS_AGENT_ID=
+NOVA_GENERAL_AGENT_ID=
+NOVA_VOICE_AGENT_ID=
+```
+
+Run docker...
+```bash
+docker compose up --build -d
+```
+
+Access the API thru:
+```
+http://localhost:8000/docs
+```
 
 ---
 
@@ -138,31 +164,140 @@ Returns `True` if urgency level is critical or high, triggering SOS alert workfl
 - *AWS SNS Mode*: Publishes to configured SNS topic for SMS, email, and push notifications
 - *Mock Mode*: Prints alert to console for testing without AWS credentials
 
-## **4. Installation and Usage**
 
-### *4.1. Dependencies*
+## **4. Agent Orchestration**
+Intelligent routing system using Amazon Nova agents to analyze user intent and delegate to specialized agents for crisis response, aid location, or general assistance.
 
-```bash
-pip install -r src/agents/requirements.txt
-```
-
-### *4.2. Environment Configuration*
-Copy `.env.example` to `.env` and configure:
-- AWS credentials and region
-- SNS topic ARN for SOS alerts
-- Bedrock model access for LLM detection
-
-*4.3. Example Usage*
-
+### *4.1. Main Orchestrator Function*
 ```python
-from src.agents.aid_locator import find_aid_resources
-from src.agents.crisis_detector import detect_crisis, send_sos_alert, should_escalate
-
-resources = find_aid_resources(latitude=33.8938, longitude=35.5018, radius_km=15)
-
-report = detect_crisis("5 people bleeding, need urgent medical help", location=(33.8938, 35.5018))
-
-if should_escalate(report):
-    alert = send_sos_alert(report, ["+1234567890"], use_sns=False)
+process_user_input_strands(
+    user_input: str,
+    location: Optional[Tuple[float, float]] = None
+) -> Dict
 ```
+
+*Parameters:*
+- `user_input`: User's message text
+- `location`: Optional GPS coordinates (latitude, longitude)
+
+*Returns:*
+Dictionary containing:
+- `success`: Boolean indicating processing status
+- `response`: Agent's response message
+- `agent_used`: Agent that handled the request (orchestrator, sos, aid_locator, general)
+- `user_input`: Original user message
+- `location`: GPS coordinates used
+- `error`: Error message if processing failed
+
+### *4.2. Agent Architecture*
+
+#### 4.2.1. Orchestrator Agent
+- *Model*: Amazon Nova agent (configured in Nova console)
+- *Purpose*: Analyzes user intent and routes to appropriate specialized agent
+- *Tools*: `route_to_sos_agent`, `route_to_aid_locator_agent`, `route_to_general_chat_agent`
+- *Configuration*: `NOVA_ORCHESTRATOR_AGENT_ID` environment variable
+
+#### 4.2.2. SOS Agent
+- *Model*: Amazon Nova agent with crisis response system prompt
+- *Purpose*: Handles emergency situations and crisis detection
+- *Tools*: `analyze_crisis`, `trigger_sos_alert`
+- *Configuration*: `NOVA_SOS_AGENT_ID` environment variable
+- *Capabilities*: Urgency classification, injury detection, emergency contact alerting
+
+#### 4.2.3. Aid Locator Agent
+- *Model*: Amazon Nova agent with resource finding capabilities
+- *Purpose*: Finds nearby aid resources (hospitals, shelters, food, water)
+- *Tools*: `search_nearby_resources`, `filter_resources_by_type`
+- *Configuration*: Uses `NOVA_SOS_AGENT_ID` (shares model with SOS agent)
+- *Data Sources*: OpenStreetMap, UNHCR refugee camp database
+
+## **5. API**
+
+REST API providing HTTP endpoints for the RefugeeReach agent system with automatic location detection and CORS support.
+
+### *5.1. Endpoints*
+
+#### 5.1.1. Health Check
+```http
+GET /
+```
+
+*Response:*
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0",
+  "agents_configured": true
+}
+```
+
+Returns API health status and agent configuration state.
+
+#### 5.1.2. Chat
+```http
+POST /chat
+Content-Type: application/json
+```
+
+*Request Body:*
+```json
+{
+  "message": "Help! I need medical assistance"
+}
+```
+
+*Parameters:*
+- `message`: User's message text (required)
+- `location`: GPS coordinates as [latitude, longitude] (optional, overrides auto-detection)
+- `auto_detect_location`: Enable automatic IP-based location detection (optional, default: true)
+
+*Response:*
+```json
+{
+  "success": true,
+  "response": "I've detected a critical situation and triggered an SOS alert...",
+  "agent_used": "orchestrator",
+  "location": [33.8938, 35.5018],
+  "error": null
+}
+```
+
+Processes user messages through the orchestrator agent and returns AI-generated responses.
+
+#### 5.1.3. Get Location
+```http
+GET /location
+```
+
+*Response:*
+```json
+{
+  "success": true,
+  "latitude": 40.7128,
+  "longitude": -74.0060
+}
+```
+
+Auto-detects device location from IP address using geocoder library.
+
+### *5.2. Running the API*
+
+#### 5.2.1. Development Mode*
+```bash
+python src/api/run.py
+```
+
+Server starts at http://localhost:8000 with auto-reload enabled.
+
+#### 5.2.2. Production Mode
+```bash
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+#### 5.2.3. Docker
+```bash
+docker-compose up -d
+```
+
+Builds and runs containerized API with environment variables from `.env` file.
 

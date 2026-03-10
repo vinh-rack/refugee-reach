@@ -2,9 +2,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.agents.aid_locator import (AidResource, calculate_distance,
-                                    find_aid_resources, query_openstreetmap,
-                                    query_unhcr_camps)
+from src.features.aid_locator import (AidResource, calculate_distance,
+                                      find_aid_resources, query_openstreetmap,
+                                      query_unhcr_camps)
 
 
 def test_calculate_distance():
@@ -21,7 +21,7 @@ def test_calculate_distance_same_location():
     assert distance == 0.0
 
 
-@patch('src.agents.aid_locator.requests.get')
+@patch('src.features.aid_locator.requests.get')
 def test_query_unhcr_camps_success(mock_get):
     mock_response = Mock()
     mock_response.status_code = 200
@@ -44,7 +44,7 @@ def test_query_unhcr_camps_success(mock_get):
     assert camps[0]["source"] == "UNHCR"
 
 
-@patch('src.agents.aid_locator.requests.get')
+@patch('src.features.aid_locator.requests.get')
 def test_query_unhcr_camps_failure(mock_get):
     mock_get.side_effect = Exception("API Error")
 
@@ -53,7 +53,7 @@ def test_query_unhcr_camps_failure(mock_get):
     assert camps == []
 
 
-@patch('src.agents.aid_locator.requests.post')
+@patch('src.features.aid_locator.requests.post')
 def test_query_openstreetmap_success(mock_post):
     mock_response = Mock()
     mock_response.status_code = 200
@@ -81,7 +81,7 @@ def test_query_openstreetmap_success(mock_post):
     assert resources[0]["source"] == "OpenStreetMap"
 
 
-@patch('src.agents.aid_locator.requests.post')
+@patch('src.features.aid_locator.requests.post')
 def test_query_openstreetmap_failure(mock_post):
     mock_post.side_effect = Exception("API Error")
 
@@ -90,8 +90,8 @@ def test_query_openstreetmap_failure(mock_post):
     assert resources == []
 
 
-@patch('src.agents.aid_locator.query_openstreetmap')
-@patch('src.agents.aid_locator.query_unhcr_camps')
+@patch('src.features.aid_locator.query_openstreetmap')
+@patch('src.features.aid_locator.query_unhcr_camps')
 def test_find_aid_resources(mock_unhcr, mock_osm):
     mock_osm.return_value = [
         {
@@ -123,8 +123,8 @@ def test_find_aid_resources(mock_unhcr, mock_osm):
     assert resources[1].name == "Camp B"
 
 
-@patch('src.agents.aid_locator.query_openstreetmap')
-@patch('src.agents.aid_locator.query_unhcr_camps')
+@patch('src.features.aid_locator.query_openstreetmap')
+@patch('src.features.aid_locator.query_unhcr_camps')
 def test_find_aid_resources_max_results(mock_unhcr, mock_osm):
     mock_osm.return_value = [
         {

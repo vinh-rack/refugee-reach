@@ -1,10 +1,10 @@
 import pytest
 
-from src.agents.crisis_detector import (CrisisReport, detect_crisis,
-                                        detect_injury_type, detect_needs,
-                                        detect_urgency_level,
-                                        extract_coordinates, extract_numbers,
-                                        generate_summary, should_escalate)
+from src.features.crisis_detector import (CrisisReport, detect_crisis,
+                                          detect_injury_type, detect_needs,
+                                          detect_urgency_level,
+                                          extract_coordinates, extract_numbers,
+                                          generate_summary, should_escalate)
 
 
 def test_extract_numbers():

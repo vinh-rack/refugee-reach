@@ -1,0 +1,181 @@
+import os
+from typing import Dict, Optional, Tuple
+
+from strands import Agent, tool
+
+from src.agents.aid_agent import create_aid_locator_agent
+from src.agents.general_agent import create_general_chat_agent
+from src.agents.nova_client import (get_general_model, get_orchestrator_model,
+                                    get_sos_model)
+from src.agents.sos_agent import create_sos_agent
+
+_sos_agent = None
+_aid_agent = None
+_general_agent = None
+_orchestrator = None
+
+
+def _extract_message_text(message) -> str:
+    """
+    Extract plain text from a Strands/Bedrock message object.
+    Handles str, list of content blocks, or dict.
+    """
+    # Already a string — return directly
+    if isinstance(message, str):
+        return message
+
+    # Strands returns message as a list of content blocks: [{"type": "text", "text": "..."}]
+    if isinstance(message, list):
+        return " ".join(
+            block.get("text", "")
+            for block in message
+            if isinstance(block, dict) and block.get("type") == "text"
+        ).strip()
+
+    # Dict with a direct "text" key
+    if isinstance(message, dict):
+        return message.get("text", str(message))
+
+    # Fallback
+    return str(message)
+
+
+def get_sos_agent():
+    """Get or create SOS agent (lazy initialization)."""
+    global _sos_agent
+    if _sos_agent is None:
+        _sos_agent = create_sos_agent(model=get_sos_model())
+    return _sos_agent
+
+
+def get_aid_agent():
+    """Get or create Aid Locator agent (lazy initialization)."""
+    global _aid_agent
+    if _aid_agent is None:
+        _aid_agent = create_aid_locator_agent(model=get_sos_model())
+    return _aid_agent
+
+
+def get_general_agent():
+    """Get or create General Chat agent (lazy initialization)."""
+    global _general_agent
+    if _general_agent is None:
+        _general_agent = create_general_chat_agent(model=get_general_model())
+    return _general_agent
+
+
+@tool
+def route_to_sos_agent(user_message: str, location: Optional[Tuple[float, float]] = None) -> str:
+    """
+    Route emergency situations to the SOS agent for crisis analysis and alert triggering.
+    Use this for: injuries, bleeding, danger, violence, life-threatening situations.
+
+    Args:
+        user_message: The user's emergency message
+        location: Optional GPS coordinates (latitude, longitude)
+
+    Returns:
+        Response from SOS agent with crisis analysis and alert status
+    """
+    context = f"User message: {user_message}"
+    if location:
+        context += f"\nUser location: {location[0]}, {location[1]}"
+
+    response = get_sos_agent()(context)
+    return _extract_message_text(response.message)
+
+
+@tool
+def route_to_aid_locator_agent(user_message: str, location: Tuple[float, float]) -> str:
+    """
+    Route resource finding requests to the Aid Locator agent.
+    Use this for: finding hospitals, shelters, food, water, refugee camps.
+
+    Args:
+        user_message: The user's request for resources
+        location: GPS coordinates (latitude, longitude) - REQUIRED
+
+    Returns:
+        Response from Aid Locator agent with nearby resources
+    """
+    context = f"User message: {user_message}\nUser location: {location[0]}, {location[1]}"
+
+    response = get_aid_agent()(context)
+    return _extract_message_text(response.message)
+
+
+@tool
+def route_to_general_chat_agent(user_message: str) -> str:
+    """
+    Route general questions and greetings to the General Chat agent.
+    Use this for: greetings, general questions, information requests, unclear intent.
+
+    Args:
+        user_message: The user's message
+
+    Returns:
+        Response from General Chat agent
+    """
+    response = get_general_agent()(user_message)
+    return _extract_message_text(response.message)
+
+
+def create_orchestrator_agent(model=None) -> Agent:
+    """Create and configure the Orchestrator agent."""
+
+    if model is None:
+        model = get_orchestrator_model()
+
+    agent = Agent(
+        tools=[route_to_sos_agent, route_to_aid_locator_agent, route_to_general_chat_agent],
+        model=model
+    )
+
+    return agent
+
+
+def get_orchestrator():
+    """Get or create orchestrator agent (lazy initialization)."""
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = create_orchestrator_agent(model=get_orchestrator_model())
+    return _orchestrator
+
+
+def process_user_input_strands(
+    user_input: str,
+    location: Optional[Tuple[float, float]] = None
+) -> Dict:
+    """
+    Process user input through the Strands orchestrator agent.
+
+    Args:
+        user_input: User's message
+        location: Optional GPS coordinates
+
+    Returns:
+        Dictionary with orchestrator response and metadata
+    """
+    context = f"User message: {user_input}"
+    if location:
+        context += f"\nUser location: {location[0]}, {location[1]}"
+
+    try:
+        orchestrator = get_orchestrator()
+        response = orchestrator(context)
+
+        return {
+            "success": True,
+            "response": _extract_message_text(response.message or []),
+            "agent_used": "orchestrator",
+            "user_input": user_input,
+            "location": location
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "response": "I'm having trouble processing your request. Please try again.",
+            "user_input": user_input
+        }

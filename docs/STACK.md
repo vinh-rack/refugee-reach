@@ -13,17 +13,17 @@
 
 ## **2. Backend**
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| API Layer | AWS API Gateway (REST + WebSocket) | REST for chat/SOS, WS for voice |
-| Compute | AWS Lambda (Python 3.12) | Serverless function handlers |
-| Orchestration | Strands Agents (Python) | Multi-agent coordination |
-| Auth | Amazon Cognito | User identity, anonymous guest sessions |
-| Database | Amazon DynamoDB | Sessions, SOS records, alert cache |
-| File Storage | Amazon S3 | Uploaded documents and images |
-| Push Notifications | Amazon SNS | SOS alerts to emergency contacts |
-| Translation Fallback | Amazon Translate | Languages outside Nova Sonic's native support |
-| News Ingestion | AWS EventBridge + Lambda | Scheduled news polling pipeline |
+| Layer                | Technology                         | Purpose                                       |
+| -------------------- | ---------------------------------- | --------------------------------------------- |
+| API Layer            | AWS API Gateway (REST + WebSocket) | REST for chat/SOS, WS for voice               |
+| Compute              | AWS Lambda (Python 3.12)           | Serverless function handlers                  |
+| Orchestration        | Strands Agents (Python)            | Multi-agent coordination                      |
+| Auth                 | Amazon Cognito                     | User identity, anonymous guest sessions       |
+| Database             | Amazon DynamoDB                    | Sessions, SOS records, alert cache            |
+| File Storage         | Amazon S3                          | Uploaded documents and images                 |
+| Push Notifications   | Amazon SNS                         | SOS alerts to emergency contacts              |
+| Translation Fallback | Amazon Translate                   | Languages outside Nova Sonic's native support |
+| News Ingestion       | AWS EventBridge + Lambda           | Scheduled news polling pipeline               |
 
 ---
 

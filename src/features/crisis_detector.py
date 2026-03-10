@@ -302,16 +302,16 @@ def send_sos_alert(
 
     message = f"""🚨 EMERGENCY SOS ALERT 🚨
 
-Alert ID: {alert_id}
-Urgency: {crisis_report.urgency_level.upper()}
-Time: {timestamp}
+    Alert ID: {alert_id}
+    Urgency: {crisis_report.urgency_level.upper()}
+    Time: {timestamp}
 
-{crisis_report.summary}
+    {crisis_report.summary}
 
-Raw Message: {crisis_report.raw_input}
+    Raw Message: {crisis_report.raw_input}
 
-Detection Method: {crisis_report.detection_mode}
-"""
+    Detection Method: {crisis_report.detection_mode}
+    """
 
     if crisis_report.location:
         lat, lon = crisis_report.location
