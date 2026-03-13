@@ -6,11 +6,13 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 
 from src.agents.orchestrator import process_user_input_strands
 from src.agents.voice_agent import NovaVoiceBridge
-from src.api.models import ChatRequest, ChatResponse, HealthResponse
+from src.api.models import (AidResourceResponse, ChatRequest, ChatResponse,
+                            HealthResponse, RouteResponse, RouteStepResponse,
+                            RouteToResourceRequest, RouteToResourceResponse)
+from src.features.aid_locator import find_aid_resources, get_route_to_resource
 from src.features.location_service import get_device_location
 
 load_dotenv()
@@ -91,6 +93,80 @@ async def get_location():
         "success": False,
         "message": "Could not determine location"
     }
+
+
+@app.get("/aid/nearby")
+async def get_nearby_aid(
+    latitude: float,
+    longitude: float,
+    radius_km: float = 10,
+    max_results: int = 20
+):
+    """Find nearby aid resources"""
+    try:
+        resources = find_aid_resources(latitude, longitude, radius_km, max_results)
+
+        return {
+            "success": True,
+            "count": len(resources),
+            "resources": [
+                AidResourceResponse(
+                    name=r.name,
+                    type=r.type,
+                    latitude=r.latitude,
+                    longitude=r.longitude,
+                    distance_km=r.distance_km,
+                    address=r.address,
+                    contact=r.contact,
+                    hours=r.hours,
+                    source=r.source
+                ) for r in resources
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/route/to-resource", response_model=RouteToResourceResponse)
+async def calculate_route_endpoint(request: RouteToResourceRequest):
+    """Get route from user location to aid resource"""
+    try:
+        api_key = os.getenv("OPENROUTESERVICE_API_KEY")
+
+        route = get_route_to_resource(
+            request.user_latitude,
+            request.user_longitude,
+            request.resource_latitude,
+            request.resource_longitude,
+            api_key
+        )
+
+        if route:
+            return RouteToResourceResponse(
+                success=True,
+                route=RouteResponse(
+                    total_distance_km=route.total_distance_km,
+                    total_duration_min=route.total_duration_min,
+                    steps=[
+                        RouteStepResponse(
+                            instruction=step.instruction,
+                            distance_m=step.distance_m,
+                            duration_s=step.duration_s,
+                            latitude=step.latitude,
+                            longitude=step.longitude
+                        ) for step in route.steps
+                    ],
+                    polyline=route.polyline
+                )
+            )
+
+        return RouteToResourceResponse(
+            success=False,
+            error="Could not calculate route"
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class WebSocketVoiceBridge(NovaVoiceBridge):

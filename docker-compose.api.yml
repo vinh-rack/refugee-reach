@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - NOVA_API_KEY=${NOVA_API_KEY}
+      - NOVA_ORCHESTRATOR_AGENT_ID=${NOVA_ORCHESTRATOR_AGENT_ID}
+      - NOVA_SOS_AGENT_ID=${NOVA_SOS_AGENT_ID}
+      - NOVA_GENERAL_AGENT_ID=${NOVA_GENERAL_AGENT_ID}
+      - NOVA_VOICE_AGENT_ID=${NOVA_VOICE_AGENT_ID}
+      - AWS_REGION=${AWS_REGION}
+    env_file:
+      - .env
+    restart: unless-stopped

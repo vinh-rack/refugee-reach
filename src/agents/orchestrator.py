@@ -24,6 +24,21 @@ def _extract_message_text(message) -> str:
     if isinstance(message, str):
         return message
 
+    # Dict with 'role' and 'content' keys (Bedrock format)
+    if isinstance(message, dict) and "content" in message:
+        content = message["content"]
+        # Content is a list of blocks
+        if isinstance(content, list):
+            return " ".join(
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("text")
+            ).strip()
+        # Content is a string
+        elif isinstance(content, str):
+            return content
+        return str(content)
+
     # Strands returns message as a list of content blocks: [{"type": "text", "text": "..."}]
     if isinstance(message, list):
         return " ".join(

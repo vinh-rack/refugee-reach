@@ -13,3 +13,6 @@ docs/
 examples/
 tests/
 .obsidian/
+node_modules
+src/ui/node_modules
+src/ui/dist

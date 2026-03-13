@@ -1,0 +1,150 @@
+import { useEffect, useState } from 'react';
+import './App.css';
+import ChatFrame from './components/ChatFrame';
+import MapView from './components/MapView';
+import SOSButton from './components/SOSButton';
+import VoiceButton from './components/VoiceButton';
+
+interface Location {
+  latitude: number;
+  longitude: number;
+}
+
+interface AidResource {
+  name: string;
+  type: string;
+  latitude: number;
+  longitude: number;
+  distance_km: number;
+  address?: string;
+  contact?: string;
+  hours?: string;
+  source: string;
+}
+
+interface Notification {
+  id: number;
+  type: 'info' | 'success' | 'warning' | 'error';
+  message: string;
+}
+
+function App() {
+  const [location, setLocation] = useState<Location | null>(null);
+  const [resources, setResources] = useState<AidResource[]>([]);
+  const [selectedResource, setSelectedResource] = useState<AidResource | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [sosActive, setSOSActive] = useState(false);
+
+  useEffect(() => {
+    fetchLocation();
+  }, []);
+
+  const addNotification = (type: Notification['type'], message: string) => {
+    const id = Date.now();
+    setNotifications(prev => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
+  };
+
+  const fetchLocation = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/location');
+      const data = await response.json();
+      if (data.success) {
+        setLocation({ latitude: data.latitude, longitude: data.longitude });
+      }
+    } catch (error) {
+      console.error('Failed to fetch location:', error);
+    }
+  };
+
+  const fetchNearbyResources = async (lat: number, lon: number) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/aid/nearby?latitude=${lat}&longitude=${lon}&radius_km=10&max_results=10`
+      );
+      const data = await response.json();
+      if (data.success) {
+        setResources(data.resources);
+        console.log('Resources updated:', data.resources.length);
+      }
+    } catch (error) {
+      console.error('Failed to fetch resources:', error);
+    }
+  };
+
+  const refreshResources = () => {
+    if (location) {
+      fetchNearbyResources(location.latitude, location.longitude);
+    }
+  };
+
+  const handleResourcesReceived = (agentResources: AidResource[]) => {
+    console.log('Updating map with agent resources:', agentResources);
+    setResources(agentResources);
+    addNotification('success', `Found ${agentResources.length} nearby resources`);
+  };
+
+  const handleSOSTriggered = (alert: any) => {
+    console.log('SOS Alert triggered by agent:', alert);
+    setSOSActive(true);
+    addNotification('error', 'Emergency SOS Alert Sent!');
+    setTimeout(() => setSOSActive(false), 3000);
+  };
+
+  const handleToolCall = (toolCalls: any[]) => {
+    console.log('Tool calls from agent:', toolCalls);
+    toolCalls.forEach(call => {
+      if (call.tool_name.includes('sos')) {
+        addNotification('warning', 'Agent is analyzing emergency situation...');
+      } else if (call.tool_name.includes('aid_locator')) {
+        addNotification('info', 'Agent is searching for nearby resources...');
+      }
+    });
+  };
+
+  return (
+    <div className="app">
+      {/* Notification System */}
+      <div className="notifications">
+        {notifications.map(notif => (
+          <div key={notif.id} className={`notification notification-${notif.type}`}>
+            {notif.message}
+          </div>
+        ))}
+      </div>
+
+      <header className="app-header">
+        <h1>RefugeeReach</h1>
+        <p>Crisis Response & Aid Location</p>
+      </header>
+
+      <div className="main-content">
+        <div className="control-panel">
+          <SOSButton location={location} active={sosActive} />
+          <VoiceButton location={location} />
+          <ChatFrame
+            location={location}
+            onResourceRequest={refreshResources}
+            onResourcesReceived={handleResourcesReceived}
+            onSOSTriggered={handleSOSTriggered}
+            onToolCall={handleToolCall}
+          />
+        </div>
+
+        <div className="map-panel">
+          <MapView
+            userLocation={location}
+            resources={resources}
+            selectedResource={selectedResource}
+            onResourceSelect={setSelectedResource}
+            onRefresh={refreshResources}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;

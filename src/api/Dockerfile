@@ -8,12 +8,14 @@ RUN apt-get update && apt-get install -y \
     portaudio19-dev \
     python3-dev \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY src/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY src/requirements.txt ./src/requirements.txt
+RUN pip install --no-cache-dir -r src/requirements.txt
 
-COPY . .
+COPY src ./src
+COPY .env* ./
 
 EXPOSE 8000
 

@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/api/Dockerfile
+    container_name: refugeereach-api-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - NOVA_API_KEY=${NOVA_API_KEY}
+      - NOVA_VOICE_AGENT_ID=${NOVA_VOICE_AGENT_ID}
+      - OPENROUTESERVICE_API_KEY=${OPENROUTESERVICE_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  ui:
+    image: node:20-alpine
+    container_name: refugeereach-ui-dev
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./src/ui:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev -- --host"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+networks:
+  default:
+    name: refugeereach-network-dev
