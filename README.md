@@ -301,3 +301,115 @@ docker-compose up -d
 
 Builds and runs containerized API with environment variables from `.env` file.
 
+
+
+## **6. Voice Agent**
+
+Real-time bidirectional voice assistant using Amazon Nova Sonic for natural speech-to-speech interaction in crisis situations.
+
+### *6.1. Voice Agent Function*
+```python
+async def run_voice_assistant():
+    """Run the voice assistant with audio I/O."""
+```
+
+Starts a persistent bidirectional streaming session with Nova Sonic, enabling:
+- Real-time speech recognition and synthesis
+- Natural conversation with interruption handling
+- Concurrent tool execution (crisis detection, aid finding)
+- Multilingual support (English, Arabic, Farsi, Hebrew)
+
+### *6.2. Configuration*
+
+#### 6.2.1. Environment Variables
+```bash
+NOVA_VOICE_AGENT_ID=your_voice_agent_id
+AWS_REGION=us-east-1  # or eu-north-1, ap-northeast-1
+```
+
+#### 6.2.2. Model Configuration
+- *Model*: `amazon.nova-sonic-v1:0`
+- *Voice*: matthew (masculine-sounding English)
+- *Audio Format*: PCM, 16kHz, mono
+- *Temperature*: 0.5 (balanced creativity)
+- *Max Tokens*: 1000 (concise responses)
+
+### *6.3. Capabilities*
+
+#### 6.3.1. Emergency Detection
+Voice agent automatically detects crisis keywords and routes to SOS agent:
+```
+User: "I'm bleeding and need help"
+Agent: "I've detected an emergency. Analyzing your situation..."
+```
+
+#### 6.3.2. Aid Resource Finding
+Finds nearby resources through voice commands:
+```
+User: "Where is the nearest hospital?"
+Agent: "I found 3 hospitals within 5km. The closest is..."
+```
+
+#### 6.3.3. General Assistance
+Answers questions about safety, procedures, and guidance:
+```
+User: "What should I do if I cross the border?"
+Agent: "When crossing the border, you should..."
+```
+
+### *6.4. Running the Voice Agent*
+
+#### 6.4.1. Basic Usage
+```python
+import asyncio
+from src.agents.voice_agent import run_voice_assistant
+
+asyncio.run(run_voice_assistant())
+```
+
+#### 6.4.2. Example Script
+```bash
+python examples/voice_agent_example.py
+```
+
+#### 6.4.3. With Context Manager
+```python
+from src.agents.voice_agent import run_voice_assistant_with_context
+
+async def main():
+    await run_voice_assistant_with_context()
+
+asyncio.run(main())
+```
+
+### *6.5. Voice Commands*
+
+- *Stop Session*: "stop conversation"
+- *Emergency*: "help", "emergency", "injured", "bleeding"
+- *Find Resources*: "hospital", "shelter", "food", "water"
+- *General*: Any question about safety, procedures, or guidance
+
+### *6.6. Requirements*
+
+- Python 3.12+ (required for BidiNovaSonicModel)
+- `strands-agents[bidi]` package installed
+- AWS credentials configured (boto3 session or environment variables)
+- Microphone and speakers available
+- AWS region: us-east-1, eu-north-1, or ap-northeast-1
+
+### *6.7. API Endpoint*
+```http
+GET /voice/status
+```
+
+*Response:*
+```json
+{
+  "voice_agent_configured": true,
+  "aws_region": "us-east-1",
+  "model": "amazon.nova-sonic-v1:0",
+  "note": "Voice agent requires bidirectional streaming. Use WebSocket or dedicated client."
+}
+```
+
+Checks voice agent configuration status. Note: Voice streaming requires WebSocket connection, not standard HTTP REST.

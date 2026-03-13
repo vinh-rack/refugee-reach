@@ -69,7 +69,7 @@ def example_sns_integration():
     print("=" * 80)
 
     if not os.getenv('SNS_SOS_TOPIC_ARN'):
-        print("⚠️  SNS_SOS_TOPIC_ARN not configured, using mock mode")
+        print("SNS_SOS_TOPIC_ARN not configured, using mock mode")
         print("To use real SNS, set SNS_SOS_TOPIC_ARN in your environment")
         use_sns = False
     else:
@@ -94,7 +94,7 @@ def example_sns_integration():
         elif alert.status == "mock_sent":
             print("✅ Mock SOS alert sent (SNS not configured)")
         else:
-            print(f"⚠️  Alert status: {alert.status}")
+            print(f"⚠️ Alert status: {alert.status}")
 
     print("\n")
 
