@@ -70,6 +70,10 @@ async def chat(request: ChatRequest):
             response=result.get("response", ""),
             agent_used=result.get("agent_used"),
             location=result.get("location"),
+            resources=[
+                AidResourceResponse(**r) for r in result["resources"]
+            ] if result.get("resources") else None,
+            sos_alert=result.get("sos_alert"),
             error=result.get("error")
         )
 

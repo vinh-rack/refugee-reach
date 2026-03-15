@@ -16,7 +16,7 @@ interface Message {
   content: string;
 }
 
-function ChatFrame({ onResourceRequest, onResourcesReceived, onSOSTriggered, onToolCall, onToggleMap, mapVisible }: ChatFrameProps) {
+function ChatFrame({ onResourcesReceived, onSOSTriggered, onToolCall, onToggleMap, mapVisible }: ChatFrameProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -74,17 +74,6 @@ function ChatFrame({ onResourceRequest, onResourcesReceived, onSOSTriggered, onT
         if (data.sos_alert) {
           console.log('SOS alert triggered:', data.sos_alert);
           onSOSTriggered?.(data.sos_alert);
-        }
-
-        // Legacy fallback: trigger resource request based on keywords
-        if (!data.resources && (
-            userMessage.toLowerCase().includes('hospital') ||
-            userMessage.toLowerCase().includes('shelter') ||
-            userMessage.toLowerCase().includes('food') ||
-            userMessage.toLowerCase().includes('water') ||
-            userMessage.toLowerCase().includes('help') ||
-            userMessage.toLowerCase().includes('aid'))) {
-          onResourceRequest?.();
         }
       } else {
         setMessages(prev => [...prev, {

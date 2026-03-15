@@ -5,6 +5,23 @@ from strands import Agent, tool
 from src.features.crisis_detector import (detect_crisis, send_sos_alert,
                                           should_escalate)
 
+# Accumulator for captured SOS alert data
+_captured_sos_alert: Optional[Dict] = None
+
+
+def get_captured_sos_alert() -> Optional[Dict]:
+    """Return and clear captured SOS alert."""
+    global _captured_sos_alert
+    result = _captured_sos_alert
+    _captured_sos_alert = None
+    return result
+
+
+def clear_captured_sos_alert():
+    """Clear captured SOS alert."""
+    global _captured_sos_alert
+    _captured_sos_alert = None
+
 
 @tool
 def analyze_crisis(user_input: str, location: Optional[Tuple[float, float]] = None) -> Dict:
@@ -74,12 +91,18 @@ def trigger_sos_alert(
 
     if should_escalate(crisis_report):
         alert = send_sos_alert(crisis_report, emergency_contacts, use_sns=False)
-        return {
+        result = {
             "alert_sent": True,
             "alert_id": alert.alert_id,
             "status": alert.status,
-            "sent_at": alert.sent_at
+            "sent_at": alert.sent_at,
+            "urgency_level": urgency_level,
+            "summary": summary,
+            "location": location
         }
+        global _captured_sos_alert
+        _captured_sos_alert = result
+        return result
 
     return {
         "alert_sent": False,

@@ -3,11 +3,14 @@ from typing import Dict, Optional, Tuple
 
 from strands import Agent, tool
 
-from src.agents.aid_agent import create_aid_locator_agent
+from src.agents.aid_agent import (clear_captured_resources,
+                                  create_aid_locator_agent,
+                                  get_captured_resources)
 from src.agents.general_agent import create_general_chat_agent
 from src.agents.nova_client import (get_general_model, get_orchestrator_model,
                                     get_sos_model)
-from src.agents.sos_agent import create_sos_agent
+from src.agents.sos_agent import (clear_captured_sos_alert, create_sos_agent,
+                                  get_captured_sos_alert)
 
 _sos_agent = None
 _aid_agent = None
@@ -176,16 +179,31 @@ def process_user_input_strands(
         context += f"\nUser location: {location[0]}, {location[1]}"
 
     try:
+        # Clear accumulators before running
+        clear_captured_resources()
+        clear_captured_sos_alert()
+
         orchestrator = get_orchestrator()
         response = orchestrator(context)
 
-        return {
+        # Collect captured data from sub-agent tool calls
+        resources = get_captured_resources()
+        sos_alert = get_captured_sos_alert()
+
+        result = {
             "success": True,
             "response": _extract_message_text(response.message or []),
             "agent_used": "orchestrator",
             "user_input": user_input,
             "location": location
         }
+
+        if resources:
+            result["resources"] = resources
+        if sos_alert:
+            result["sos_alert"] = sos_alert
+
+        return result
 
     except Exception as e:
         return {

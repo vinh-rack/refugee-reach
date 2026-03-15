@@ -96,8 +96,10 @@ function App() {
   const handleSOSTriggered = (alert: any) => {
     console.log('SOS Alert triggered by agent:', alert);
     setSOSActive(true);
-    addNotification('error', 'Emergency SOS Alert Sent!');
-    setTimeout(() => setSOSActive(false), 3000);
+    const summary = alert.summary || 'Emergency detected';
+    const urgency = alert.urgency_level || 'unknown';
+    addNotification('error', `🚨 SOS Alert (${urgency}): ${summary}`);
+    setTimeout(() => setSOSActive(false), 5000);
   };
 
   const handleToolCall = (toolCalls: any[]) => {
