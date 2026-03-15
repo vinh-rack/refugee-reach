@@ -1,5 +1,6 @@
 import asyncio
 import base64 as b64
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -11,19 +12,24 @@ from src.agents.orchestrator import process_user_input_strands
 from src.agents.voice_agent import NovaVoiceBridge
 from src.api.models import (AidResourceResponse, ChatRequest, ChatResponse,
                             HealthResponse, RouteResponse, RouteStepResponse,
-                            RouteToResourceRequest, RouteToResourceResponse)
+                            RouteToResourceRequest, RouteToResourceResponse,
+                            SOSRequest, SOSResponse)
 from src.features.aid_locator import find_aid_resources, get_route_to_resource
+from src.features.crisis_detector import CrisisReport, send_sos_alert
 from src.features.location_service import get_device_location
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+logger = logging.getLogger("sos.api")
 
 load_dotenv()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Starting RefugeeReach API...")
-    print(f"Nova API Key: {'Configured' if os.getenv('NOVA_API_KEY') else 'Not configured'}")
+    logger.info("Starting RefugeeReach API...")
+    logger.info("Nova API Key: %s", "Configured" if os.getenv("NOVA_API_KEY") else "Not configured")
     yield
-    print("Shutting down RefugeeReach API...")
+    logger.info("Shutting down RefugeeReach API...")
 
 
 app = FastAPI(
@@ -82,6 +88,42 @@ async def chat(request: ChatRequest):
         )
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/sos", response_model=SOSResponse)
+async def sos(request: SOSRequest):
+    """Direct SOS endpoint — sends an SNS alert immediately without LLM routing."""
+    logger.info("Received SOS request — lat=%s, lon=%s", request.latitude, request.longitude)
+    try:
+        from datetime import datetime
+
+        crisis_report = CrisisReport(
+            urgency_level="critical",
+            detected_keywords=["sos", "emergency"],
+            location=(request.latitude, request.longitude),
+            num_people=None,
+            injury_type=None,
+            needs=["emergency_response"],
+            summary=f"URGENCY: CRITICAL | SOS button pressed | Location: {request.latitude:.6f}, {request.longitude:.6f}",
+            timestamp=datetime.utcnow().isoformat(),
+            raw_input="SOS button pressed",
+            detection_mode="direct_sos"
+        )
+        logger.info("CrisisReport built — urgency=%s, summary=%s", crisis_report.urgency_level, crisis_report.summary)
+
+        alert = send_sos_alert(crisis_report, emergency_contacts=[])
+        logger.info("send_sos_alert returned — alert_id=%s, status=%s", alert.alert_id, alert.status)
+
+        success = alert.status == "sent_sns"
+        logger.info("Responding with success=%s", success)
+        return SOSResponse(
+            success=success,
+            alert_id=alert.alert_id,
+            status=alert.status
+        )
+    except Exception as e:
+        logger.exception("SOS endpoint failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 

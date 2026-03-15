@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react';
 interface SOSButtonProps {
   location: { latitude: number; longitude: number } | null;
   active?: boolean;
+  onSOSTriggered?: (alert: { summary: string; urgency_level: string }) => void;
 }
 
 type SOSStatus = 'idle' | 'sending' | 'sent' | 'error';
 
-function SOSButton({ location, active }: SOSButtonProps) {
+function SOSButton({ location, active, onSOSTriggered }: SOSButtonProps) {
   const [status, setStatus] = useState<SOSStatus>('idle');
   const [message, setMessage] = useState('');
 
@@ -24,40 +25,51 @@ function SOSButton({ location, active }: SOSButtonProps) {
   }, [active, status]);
 
   const sendSOS = async () => {
+    console.log('[SOS] Button clicked. Current location:', location);
+
     if (!location) {
+      console.warn('[SOS] Aborted — location not available');
       setMessage('Location not available');
       return;
     }
 
     setStatus('sending');
     setMessage('Sending SOS signal...');
+    console.log('[SOS] Sending request to /sos with:', { latitude: location.latitude, longitude: location.longitude });
 
     try {
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch('http://localhost:8000/sos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `EMERGENCY SOS - I need immediate help at coordinates ${location.latitude}, ${location.longitude}`
+          latitude: location.latitude,
+          longitude: location.longitude
         })
       });
 
+      console.log('[SOS] Response status:', response.status, response.statusText);
       const data = await response.json();
+      console.log('[SOS] Response body:', data);
 
       if (data.success) {
+        console.log('[SOS] Success — SOS sent');
         setStatus('sent');
         setMessage('SOS sent successfully!');
+        onSOSTriggered?.({ summary: 'Emergency SOS signal sent', urgency_level: 'critical' });
         setTimeout(() => {
           setStatus('idle');
           setMessage('');
         }, 3000);
       } else {
+        console.error('[SOS] Server returned failure:', data);
         setStatus('error');
         setMessage('Failed to send SOS');
       }
     } catch (error) {
+      console.error('[SOS] Network/fetch error:', error);
       setStatus('error');
       setMessage('Network error');
-      console.error('SOS error:', error);
+      onSOSTriggered?.({ summary: 'Failed to send SOS — network error', urgency_level: 'error' });
     }
   };
 

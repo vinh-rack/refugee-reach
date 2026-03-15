@@ -585,25 +585,25 @@ body {
 }
 
 .notification-info {
-  background: rgba(59, 130, 246, 0.15);
+  background: #1e2a4a;
   border-left-color: #3b82f6;
   color: #93c5fd;
 }
 
 .notification-success {
-  background: rgba(34, 197, 94, 0.15);
+  background: #14332a;
   border-left-color: #22c55e;
   color: #86efac;
 }
 
 .notification-warning {
-  background: rgba(251, 146, 60, 0.15);
+  background: #3b2a14;
   border-left-color: #fb923c;
   color: #fdba74;
 }
 
 .notification-error {
-  background: rgba(239, 68, 68, 0.15);
+  background: #3b1414;
   border-left-color: #ef4444;
   color: #fca5a5;
 }

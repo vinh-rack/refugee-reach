@@ -24,8 +24,7 @@ def example_keyword_detection_with_sos():
 
         alert = send_sos_alert(
             crisis_report=report,
-            emergency_contacts=emergency_contacts,
-            use_sns=False
+            emergency_contacts=emergency_contacts
         )
 
         print(f"\nAlert ID: {alert.alert_id}")
@@ -54,8 +53,7 @@ def example_llm_detection_with_sos():
 
         alert = send_sos_alert(
             crisis_report=report,
-            emergency_contacts=emergency_contacts,
-            use_sns=False
+            emergency_contacts=emergency_contacts
         )
 
         print(f"\nAlert ID: {alert.alert_id}")
@@ -68,12 +66,12 @@ def example_sns_integration():
     print("Example 3: AWS SNS Integration (requires AWS credentials)")
     print("=" * 80)
 
-    if not os.getenv('SNS_SOS_TOPIC_ARN'):
-        print("SNS_SOS_TOPIC_ARN not configured, using mock mode")
-        print("To use real SNS, set SNS_SOS_TOPIC_ARN in your environment")
-        use_sns = False
-    else:
-        use_sns = True
+    # if not os.getenv('SNS_SOS_TOPIC_ARN'):
+    #     print("SNS_SOS_TOPIC_ARN not configured, using mock mode")
+    #     print("To use real SNS, set SNS_SOS_TOPIC_ARN in your environment")
+    #     use_sns = False
+    # else:
+    #     use_sns = True
 
     user_input = "Critical: Person unconscious, not breathing at 33.8938, 35.5018"
 
@@ -84,8 +82,7 @@ def example_sns_integration():
 
         alert = send_sos_alert(
             crisis_report=report,
-            emergency_contacts=emergency_contacts,
-            use_sns=use_sns
+            emergency_contacts=emergency_contacts
         )
 
         print(f"Alert Status: {alert.status}")

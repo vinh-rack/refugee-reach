@@ -90,7 +90,7 @@ def trigger_sos_alert(
     )
 
     if should_escalate(crisis_report):
-        alert = send_sos_alert(crisis_report, emergency_contacts, use_sns=False)
+        alert = send_sos_alert(crisis_report, emergency_contacts)
         result = {
             "alert_sent": True,
             "alert_id": alert.alert_id,

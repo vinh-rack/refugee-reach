@@ -149,7 +149,7 @@ function App() {
 
       <div className="main-content">
         <div className={`control-panel ${mapVisible ? 'map-open' : ''}`}>
-          <SOSButton location={location} active={sosActive} />
+          <SOSButton location={location} active={sosActive} onSOSTriggered={handleSOSTriggered} />
           <VoiceButton
             location={location}
             onResourcesReceived={handleResourcesReceived}

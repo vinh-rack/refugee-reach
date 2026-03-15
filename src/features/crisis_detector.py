@@ -1,12 +1,16 @@
 import json
+import logging
 import os
 import re
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import boto3
+
+logger = logging.getLogger("sos.alert")
 
 
 class DetectionMode(Enum):
@@ -293,12 +297,23 @@ def should_escalate(crisis_report: CrisisReport) -> bool:
 def send_sos_alert(
     crisis_report: CrisisReport,
     emergency_contacts: List[str],
-    use_sns: bool = True
+    # use_sns: bool = True
 ) -> SOSAlert:
-    import uuid
+
+    logger.info("send_sos_alert called — urgency=%s, detection_mode=%s", crisis_report.urgency_level, crisis_report.detection_mode)
+    logger.info("Location: %s, contacts: %s", crisis_report.location, emergency_contacts)
+
+    if not os.getenv('SNS_SOS_TOPIC_ARN'):
+        logger.warning("SNS_SOS_TOPIC_ARN not configured, using mock mode")
+        logger.info("To use real SNS, set SNS_SOS_TOPIC_ARN in your environment")
+        use_sns = False
+    else:
+        logger.info("SNS_SOS_TOPIC_ARN found: %s", os.getenv('SNS_SOS_TOPIC_ARN'))
+        use_sns = True
 
     alert_id = str(uuid.uuid4())
     timestamp = datetime.utcnow().isoformat()
+    logger.info("Generated alert_id=%s, timestamp=%s", alert_id, timestamp)
 
     message = f"""🚨 EMERGENCY SOS ALERT 🚨
 
@@ -320,23 +335,28 @@ def send_sos_alert(
     status = "pending"
 
     if use_sns:
+        logger.info("Attempting SNS publish...")
         try:
             sns = boto3.client('sns', region_name=os.getenv('AWS_REGION', 'us-east-1'))
             topic_arn = os.getenv('SNS_SOS_TOPIC_ARN')
 
             if topic_arn:
+                logger.info("Publishing to topic: %s", topic_arn)
                 sns.publish(
                     TopicArn=topic_arn,
                     Subject=f"🚨 SOS Alert - {crisis_report.urgency_level.upper()}",
                     Message=message
                 )
                 status = "sent_sns"
+                logger.info("SNS publish succeeded")
             else:
                 status = "no_topic_configured"
+                logger.warning("No topic ARN configured despite env var existing")
         except Exception as e:
-            print(f"SNS send failed: {e}")
+            logger.exception("SNS publish failed")
             status = "sns_failed"
     else:
+        logger.info("Mock mode — printing alert to console")
         print("\n" + "="*80)
         print("MOCK SOS ALERT - Would send to:", ", ".join(emergency_contacts))
         print("="*80)
@@ -344,6 +364,7 @@ def send_sos_alert(
         print("="*80)
         status = "mock_sent"
 
+    logger.info("Final status: %s", status)
     return SOSAlert(
         report=crisis_report,
         alert_id=alert_id,

@@ -60,6 +60,18 @@ class AidResourceResponse(BaseModel):
     source: str
 
 
+class SOSRequest(BaseModel):
+    latitude: float = Field(..., description="Device latitude")
+    longitude: float = Field(..., description="Device longitude")
+
+
+class SOSResponse(BaseModel):
+    success: bool
+    alert_id: Optional[str] = None
+    status: Optional[str] = None
+    error: Optional[str] = None
+
+
 class RouteToResourceRequest(BaseModel):
     user_latitude: float
     user_longitude: float
