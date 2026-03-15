@@ -147,6 +147,25 @@ def get_latest_events(
     finally:
         db.close()
 
+def get_filter_options() -> dict:
+    """Return distinct topics and regions from event_clusters."""
+    db = _get_session()
+    try:
+        topics = [
+            r[0] for r in db.execute(
+                text("SELECT DISTINCT topic FROM event_clusters WHERE topic IS NOT NULL ORDER BY topic")
+            ).fetchall()
+        ]
+        regions = [
+            r[0] for r in db.execute(
+                text("SELECT DISTINCT region FROM event_clusters WHERE region IS NOT NULL ORDER BY region")
+            ).fetchall()
+        ]
+        return {"topics": topics, "regions": regions}
+    finally:
+        db.close()
+
+
 
 def get_event_by_id(event_id: str) -> Optional[NewsEvent]:
     """Fetch a single event by ID with its articles."""

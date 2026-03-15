@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import './App.css';
 import ChatFrame from './components/ChatFrame';
 import MapView from './components/MapView';
+import NewsPage from './components/NewsPage';
 import SOSButton from './components/SOSButton';
 import VoiceButton from './components/VoiceButton';
 
@@ -131,6 +133,9 @@ function App() {
     });
   };
 
+  const loc = useLocation();
+  const isNewsPage = loc.pathname === '/news';
+
   return (
     <div className="app">
       {/* Notification System */}
@@ -143,41 +148,54 @@ function App() {
       </div>
 
       <header className="app-header">
-        <h1>RefugeeReach</h1>
-        <p>Crisis Response & Aid Location</p>
+        <div className="app-header-row">
+          <div>
+            <h1>RefugeeReach</h1>
+            <p>Crisis Response & Aid Location</p>
+          </div>
+          <nav className="app-nav">
+            <Link to="/" className={`app-nav-link ${!isNewsPage ? 'active' : ''}`}>Home</Link>
+            <Link to="/news" className={`app-nav-link ${isNewsPage ? 'active' : ''}`}>News</Link>
+          </nav>
+        </div>
       </header>
 
-      <div className="main-content">
-        <div className={`control-panel ${mapVisible ? 'map-open' : ''}`}>
-          <SOSButton location={location} active={sosActive} onSOSTriggered={handleSOSTriggered} />
-          <VoiceButton
-            location={location}
-            onResourcesReceived={handleResourcesReceived}
-            onSOSTriggered={handleSOSTriggered}
-          />
-          <ChatFrame
-            location={location}
-            onResourceRequest={refreshResources}
-            onResourcesReceived={handleResourcesReceived}
-            onSOSTriggered={handleSOSTriggered}
-            onToolCall={handleToolCall}
-            onToggleMap={() => setMapVisible(!mapVisible)}
-            mapVisible={mapVisible}
-          />
-        </div>
+      <Routes>
+        <Route path="/news" element={<NewsPage />} />
+        <Route path="*" element={
+          <div className="main-content">
+            <div className={`control-panel ${mapVisible ? 'map-open' : ''}`}>
+              <SOSButton location={location} active={sosActive} onSOSTriggered={handleSOSTriggered} />
+              <VoiceButton
+                location={location}
+                onResourcesReceived={handleResourcesReceived}
+                onSOSTriggered={handleSOSTriggered}
+              />
+              <ChatFrame
+                location={location}
+                onResourceRequest={refreshResources}
+                onResourcesReceived={handleResourcesReceived}
+                onSOSTriggered={handleSOSTriggered}
+                onToolCall={handleToolCall}
+                onToggleMap={() => setMapVisible(!mapVisible)}
+                mapVisible={mapVisible}
+              />
+            </div>
 
-        <div className={`map-sidebar ${mapVisible ? 'visible' : ''}`}>
-          <button className="map-close-btn" onClick={() => setMapVisible(false)}>✕</button>
-          <MapView
-            userLocation={location}
-            resources={resources}
-            selectedResource={selectedResource}
-            onResourceSelect={setSelectedResource}
-            onRefresh={refreshResources}
-            refreshing={refreshing}
-          />
-        </div>
-      </div>
+            <div className={`map-sidebar ${mapVisible ? 'visible' : ''}`}>
+              <button className="map-close-btn" onClick={() => setMapVisible(false)}>✕</button>
+              <MapView
+                userLocation={location}
+                resources={resources}
+                selectedResource={selectedResource}
+                onResourceSelect={setSelectedResource}
+                onRefresh={refreshResources}
+                refreshing={refreshing}
+              />
+            </div>
+          </div>
+        } />
+      </Routes>
     </div>
   );
 }

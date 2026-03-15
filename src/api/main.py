@@ -19,7 +19,8 @@ from src.api.models import (AidResourceResponse, ChatRequest, ChatResponse,
 from src.features.aid_locator import find_aid_resources, get_route_to_resource
 from src.features.crisis_detector import CrisisReport, send_sos_alert
 from src.features.location_service import get_device_location
-from src.features.news_service import get_latest_events, news_event_to_dict
+from src.features.news_service import (get_filter_options, get_latest_events,
+                                       news_event_to_dict)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("sos.api")
@@ -255,6 +256,16 @@ async def get_news(
         )
     except Exception as e:
         return NewsResponse(success=False, error=str(e))
+
+
+@app.get("/news/filters")
+async def get_news_filters():
+    """Return distinct topics and regions available for filtering."""
+    try:
+        options = get_filter_options()
+        return {"success": True, **options}
+    except Exception as e:
+        return {"success": False, "topics": [], "regions": [], "error": str(e)}
 
 
 class WebSocketVoiceBridge(NovaVoiceBridge):
