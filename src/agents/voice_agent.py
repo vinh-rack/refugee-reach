@@ -11,7 +11,8 @@ import websockets
 from dotenv import load_dotenv
 
 from src.features.aid_locator import find_aid_resources
-from src.features.crisis_detector import detect_crisis
+from src.features.crisis_detector import (detect_crisis, send_sos_alert,
+                                          should_escalate)
 from src.features.location_service import get_device_location
 
 load_dotenv()
@@ -117,7 +118,12 @@ def float32_to_pcm16(float32_array) -> bytes:
     return b"".join(struct.pack("<h", int(x * 32767)) for x in clipped)
 
 # Tool implementations
-async def detect_emergency_tool(user_message: str, location: Optional[Tuple[float, float]] = None) -> str:
+async def detect_emergency_tool(user_message: str, location: Optional[Tuple[float, float]] = None) -> dict:
+    """Returns {"text": str, "sos_alert": dict|None}"""
+    from datetime import datetime
+
+    from src.features.crisis_detector import CrisisReport
+
     crisis_report = detect_crisis(user_message, location)
 
     response = f"Crisis Level: {crisis_report.urgency_level.upper()}\n"
@@ -128,6 +134,8 @@ async def detect_emergency_tool(user_message: str, location: Optional[Tuple[floa
     if crisis_report.needs:
         response += f"Immediate Needs: {', '.join(crisis_report.needs)}\n"
 
+    sos_alert = None
+
     if crisis_report.urgency_level in ['critical', 'high']:
         response += "\n🚨 EMERGENCY DETECTED\n"
         response += "Recommended actions:\n"
@@ -136,10 +144,25 @@ async def detect_emergency_tool(user_message: str, location: Optional[Tuple[floa
         if location:
             response += f"- Your coordinates: {location[0]}, {location[1]}\n"
 
-    return response
+        # Trigger SOS alert like the orchestrator does
+        if should_escalate(crisis_report):
+            alert = send_sos_alert(crisis_report, ["+1234567890"], use_sns=False)
+            sos_alert = {
+                "alert_sent": True,
+                "alert_id": alert.alert_id,
+                "status": alert.status,
+                "sent_at": alert.sent_at,
+                "urgency_level": crisis_report.urgency_level,
+                "summary": crisis_report.summary,
+                "location": location
+            }
+            response += "- SOS alert has been sent to emergency contacts\n"
+
+    return {"text": response, "sos_alert": sos_alert}
 
 
-async def find_nearby_aid_tool(resource_type: str, location: Tuple[float, float]) -> str:
+async def find_nearby_aid_tool(resource_type: str, location: Tuple[float, float]) -> dict:
+    """Returns {"text": str, "resources": list[dict]}"""
     all_resources = find_aid_resources(
         latitude=location[0],
         longitude=location[1],
@@ -159,7 +182,26 @@ async def find_nearby_aid_tool(resource_type: str, location: Tuple[float, float]
     filtered = [r for r in all_resources if r.type in valid_types]
 
     if not filtered:
-        return f"No {resource_type} facilities found within 10km. Try expanding search radius or contact local authorities."
+        return {
+            "text": f"No {resource_type} facilities found within 10km. Try expanding search radius or contact local authorities.",
+            "resources": []
+        }
+
+    # Build structured resource list for the UI
+    resources_data = [
+        {
+            "name": r.name,
+            "type": r.type,
+            "distance_km": round(r.distance_km, 2),
+            "latitude": r.latitude,
+            "longitude": r.longitude,
+            "address": r.address,
+            "contact": r.contact,
+            "hours": r.hours,
+            "source": r.source
+        }
+        for r in filtered[:5]
+    ]
 
     response = f"Found {len(filtered)} {resource_type} locations nearby:\n\n"
     for i, resource in enumerate(filtered[:5], 1):
@@ -171,7 +213,7 @@ async def find_nearby_aid_tool(resource_type: str, location: Tuple[float, float]
             response += f"   Phone: {resource.contact}\n"
         response += "\n"
 
-    return response
+    return {"text": response, "resources": resources_data}
 
 
 # Headless bridge (shared by CLI and API)
@@ -284,28 +326,41 @@ class NovaVoiceBridge:
 
         await self.on_event({"type": "tool.call", "name": name, "args": args})
 
-        result = "Tool not implemented."
+        result_text = "Tool not implemented."
         try:
             location = self.location or get_device_location()
 
             if name == "detect_emergency":
-                result = await detect_emergency_tool(
+                tool_result = await detect_emergency_tool(
                     user_message=args.get("user_message", ""),
                     location=location,
                 )
+                result_text = tool_result["text"]
+                if tool_result.get("sos_alert"):
+                    await self.on_event({
+                        "type": "tool.sos_alert",
+                        "sos_alert": tool_result["sos_alert"]
+                    })
+
             elif name == "find_nearby_aid":
                 if not location:
-                    result = "Unable to determine your location. Please ensure location access is enabled."
+                    result_text = "Unable to determine your location. Please ensure location access is enabled."
                 else:
-                    result = await find_nearby_aid_tool(
+                    tool_result = await find_nearby_aid_tool(
                         resource_type=args.get("resource_type", "hospital"),
                         location=location,
                     )
+                    result_text = tool_result["text"]
+                    if tool_result.get("resources"):
+                        await self.on_event({
+                            "type": "tool.resources",
+                            "resources": tool_result["resources"]
+                        })
             else:
-                result = f"Unknown tool '{name}'."
+                result_text = f"Unknown tool '{name}'."
 
         except Exception as e:
-            result = f"Error executing tool: {str(e)}"
+            result_text = f"Error executing tool: {str(e)}"
             await self.on_event({"type": "tool.error", "name": name, "error": str(e)})
 
         await self.nova_ws.send(json.dumps({
@@ -313,7 +368,7 @@ class NovaVoiceBridge:
             "item": {
                 "type": "function_call_output",
                 "call_id": call_id,
-                "output": json.dumps({"result": result}),
+                "output": json.dumps({"result": result_text}),
             },
         }))
 

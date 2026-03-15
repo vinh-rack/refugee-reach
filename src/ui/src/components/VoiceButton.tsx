@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 
 interface VoiceButtonProps {
     location: { latitude: number; longitude: number } | null;
+    onResourcesReceived?: (resources: any[]) => void;
+    onSOSTriggered?: (alert: any) => void;
 }
 
 const JITTER_BUFFER_MS = 200;
 
-function VoiceButton({ location }: VoiceButtonProps) {
+function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceButtonProps) {
     const [isActive, setIsActive] = useState(false);
     const [status, setStatus] = useState('Click to speak');
     const [transcript, setTranscript] = useState('');
@@ -105,6 +107,10 @@ function VoiceButton({ location }: VoiceButtonProps) {
                     setTranscript(prev => prev + '\nAgent: ' + data.transcript);
                 } else if (data.type === 'response.output_audio.delta') {
                     playAudio(data.delta);
+                } else if (data.type === 'tool.resources') {
+                    onResourcesReceived?.(data.resources);
+                } else if (data.type === 'tool.sos_alert') {
+                    onSOSTriggered?.(data.sos_alert);
                 }
             };
 

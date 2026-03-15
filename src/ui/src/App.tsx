@@ -132,7 +132,11 @@ function App() {
       <div className="main-content">
         <div className={`control-panel ${mapVisible ? 'map-open' : ''}`}>
           <SOSButton location={location} active={sosActive} />
-          <VoiceButton location={location} />
+          <VoiceButton
+            location={location}
+            onResourcesReceived={handleResourcesReceived}
+            onSOSTriggered={handleSOSTriggered}
+          />
           <ChatFrame
             location={location}
             onResourceRequest={refreshResources}
