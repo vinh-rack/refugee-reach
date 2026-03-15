@@ -14,3 +14,5 @@ pyaudio>=0.2.14
 prompt-toolkit>=3.0.52
 strands_agents_tools>=0.2.22
 websockets>=16.0
+SQLAlchemy>=2.0.48
+psycopg2-binary>=2.9.11

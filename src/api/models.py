@@ -24,6 +24,7 @@ class ChatResponse(BaseModel):
     tool_calls: Optional[List[ToolCall]] = None
     resources: Optional[List['AidResourceResponse']] = None
     sos_alert: Optional[dict] = None
+    news_events: Optional[List['NewsEventResponse']] = None
 
 
 class HealthResponse(BaseModel):
@@ -83,4 +84,35 @@ class RouteToResourceResponse(BaseModel):
     success: bool
     route: Optional[RouteResponse] = None
     resource: Optional[AidResourceResponse] = None
+    error: Optional[str] = None
+
+
+class NewsArticleResponse(BaseModel):
+    id: str
+    title: Optional[str] = None
+    url: str
+    source_name: Optional[str] = None
+    published_at: Optional[str] = None
+    summary_hint: Optional[str] = None
+
+
+class NewsEventResponse(BaseModel):
+    id: str
+    canonical_title: str
+    topic: Optional[str] = None
+    region: Optional[str] = None
+    status: Optional[str] = None
+    severity_score: Optional[float] = None
+    confidence_score: Optional[float] = None
+    summary: Optional[str] = None
+    article_count: int
+    first_seen_at: Optional[str] = None
+    last_seen_at: Optional[str] = None
+    articles: List[NewsArticleResponse] = []
+
+
+class NewsResponse(BaseModel):
+    success: bool
+    count: int = 0
+    events: List[NewsEventResponse] = []
     error: Optional[str] = None

@@ -25,6 +25,9 @@ services:
       - ./src:/app/src
     command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
+    networks:
+      - default
+      - news-alert-network
 
   ui:
     image: node:20-alpine
@@ -43,3 +46,6 @@ services:
 networks:
   default:
     name: refugeereach-network-dev
+  news-alert-network:
+    external: true
+    name: news-alert-network

@@ -1,6 +1,183 @@
-version: '3.8'
+x-news-backend: &news-backend
+  build:
+    context: src/features/news_alert_app
+    dockerfile: backend/Dockerfile
+  env_file:
+    - .env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
 
 services:
+  # Infrastructure
+  postgres:
+    image: postgres:16-alpine
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newsalerts -d news_alerts"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbitmq_management_agent disable_metrics_collector false"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # News Pipeline: Migrations & Seed
+  news-migrate:
+    <<: *news-backend
+    command: ["alembic", "-c", "app/alembic.ini", "upgrade", "head"]
+    restart: "no"
+
+  news-seed:
+    image: postgres:16-alpine
+    depends_on:
+      news-migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    volumes:
+      - ./src/features/news_alert_app/backend/app/sql:/sql:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        export PGPASSWORD=newsalerts
+        psql -h postgres -U newsalerts -d news_alerts -f /sql/seed_sources.sql
+        psql -h postgres -U newsalerts -d news_alerts -f /sql/seed_whatsapp_test_user.sql
+        echo 'Seeding complete.'
+    restart: "no"
+
+  # News Pipeline: Dashboard
+  news-app:
+    <<: *news-backend
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
+
+  # News Pipeline: Workers
+  news-worker-ingest:
+    <<: *news-backend
+    command: ["python", "workers/ingest/main.py"]
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      news-seed:
+        condition: service_completed_successfully
+
+  news-worker-normalize:
+    <<: *news-backend
+    command: ["python", "workers/normalize/main.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
+
+  news-worker-deduplicate:
+    <<: *news-backend
+    command: ["python", "workers/deduplicate/main.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
+
+  news-worker-analysis:
+    <<: *news-backend
+    command: ["python", "workers/analysis/main.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
+
+  news-worker-policy:
+    <<: *news-backend
+    command: ["python", "workers/policy/main.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
+
+  news-worker-delivery-whatsapp:
+    <<: *news-backend
+    command: ["python", "workers/delivery_whatsapp/main.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
+
+  # Main RefugeeReach API
   api:
     build:
       context: .
@@ -8,21 +185,15 @@ services:
     container_name: refugeereach-api
     ports:
       - "8000:8000"
-    environment:
-      - NOVA_API_KEY=${NOVA_API_KEY}
-      - NOVA_ORCHESTRATOR_AGENT_ID=${NOVA_ORCHESTRATOR_AGENT_ID}
-      - NOVA_SOS_AGENT_ID=${NOVA_SOS_AGENT_ID}
-      - NOVA_GENERAL_AGENT_ID=${NOVA_GENERAL_AGENT_ID}
-      - NOVA_VOICE_AGENT_ID=${NOVA_VOICE_AGENT_ID}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
-      - AWS_REGION=${AWS_REGION}
-      - SNS_SOS_TOPIC_ARN=${SNS_SOS_TOPIC_ARN}
     env_file:
       - .env
     volumes:
       - ./src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      news-migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
@@ -31,6 +202,7 @@ services:
       retries: 3
       start_period: 40s
 
+  # Frontend UI
   ui:
     build:
       context: src/ui
@@ -47,6 +219,28 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  # Database UI
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_LISTEN_PORT: 5050
+    ports:
+      - "5050:5050"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - pgadmindata:/var/lib/pgadmin
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  rabbitmqdata:
+  redisdata:
+  pgadmindata:
 
 networks:
   default:

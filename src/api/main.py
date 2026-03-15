@@ -3,6 +3,7 @@ import base64 as b64
 import logging
 import os
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -11,12 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.agents.orchestrator import process_user_input_strands
 from src.agents.voice_agent import NovaVoiceBridge
 from src.api.models import (AidResourceResponse, ChatRequest, ChatResponse,
-                            HealthResponse, RouteResponse, RouteStepResponse,
+                            HealthResponse, NewsEventResponse, NewsResponse,
+                            RouteResponse, RouteStepResponse,
                             RouteToResourceRequest, RouteToResourceResponse,
                             SOSRequest, SOSResponse)
 from src.features.aid_locator import find_aid_resources, get_route_to_resource
 from src.features.crisis_detector import CrisisReport, send_sos_alert
 from src.features.location_service import get_device_location
+from src.features.news_service import get_latest_events, news_event_to_dict
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("sos.api")
@@ -84,6 +87,9 @@ async def chat(request: ChatRequest):
                 AidResourceResponse(**r) for r in result["resources"]
             ] if result.get("resources") else None,
             sos_alert=result.get("sos_alert"),
+            news_events=[
+                NewsEventResponse(**e) for e in result["news_events"]
+            ] if result.get("news_events") else None,
             error=result.get("error")
         )
 
@@ -217,6 +223,38 @@ async def calculate_route_endpoint(request: RouteToResourceRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/news", response_model=NewsResponse)
+async def get_news(
+    limit: int = 20,
+    topic: Optional[str] = None,
+    region: Optional[str] = None,
+    min_severity: Optional[float] = None,
+):
+    """
+    Get latest geopolitical news events from the pipeline database.
+
+    Query params:
+        limit: Max events to return (default 20)
+        topic: Filter by topic (e.g. Conflict, Diplomacy)
+        region: Filter by region (e.g. Middle East, Eastern Europe)
+        min_severity: Minimum severity score (0.0-1.0)
+    """
+    try:
+        events = get_latest_events(
+            limit=limit,
+            topic=topic,
+            region=region,
+            min_severity=min_severity,
+        )
+        return NewsResponse(
+            success=True,
+            count=len(events),
+            events=[NewsEventResponse(**news_event_to_dict(e)) for e in events],
+        )
+    except Exception as e:
+        return NewsResponse(success=False, error=str(e))
 
 
 class WebSocketVoiceBridge(NovaVoiceBridge):

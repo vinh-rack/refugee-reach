@@ -14,6 +14,7 @@ from src.features.aid_locator import find_aid_resources
 from src.features.crisis_detector import (detect_crisis, send_sos_alert,
                                           should_escalate)
 from src.features.location_service import get_device_location
+from src.features.news_service import get_latest_events, news_event_to_dict
 
 load_dotenv()
 
@@ -60,6 +61,29 @@ TOOLS = [
             },
             "required": ["resource_type"]
         }
+    },
+    {
+        "type": "function",
+        "name": "fetch_latest_news",
+        "description": "Fetch the latest geopolitical news events. Use when user asks about news, current events, what's happening, conflict updates, or crisis situations in a region.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Optional topic filter (e.g. Conflict, Diplomacy, Sanctions, Security)"
+                },
+                "region": {
+                    "type": "string",
+                    "description": "Optional region filter (e.g. Middle East, Eastern Europe, East Asia)"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of events to return (default 5)"
+                }
+            },
+            "required": []
+        }
     }
 ]
 
@@ -89,6 +113,11 @@ SESSION_INSTRUCTIONS = """
     - Use when user needs: hospital, shelter, food, water, refugee_camp
     - Finds resources within 10km sorted by distance
     - Location is retrieved automatically — never ask the user for it
+
+    3. fetch_latest_news(topic, region, limit)
+    - Use when user asks about: news, current events, what's happening, conflict updates, crisis situations
+    - Returns latest geopolitical events with severity scores and summaries
+    - Can filter by topic (Conflict, Diplomacy, Sanctions) or region (Middle East, Eastern Europe, East Asia)
 
     For greetings, general questions, and unclear requests — respond directly without calling a tool.
 
@@ -214,6 +243,50 @@ async def find_nearby_aid_tool(resource_type: str, location: Tuple[float, float]
         response += "\n"
 
     return {"text": response, "resources": resources_data}
+
+
+async def fetch_latest_news_tool(
+    topic: Optional[str] = None,
+    region: Optional[str] = None,
+    limit: int = 5,
+) -> dict:
+    """Returns {"text": str, "news_events": list[dict]}"""
+    try:
+        events = get_latest_events(
+            limit=limit,
+            topic=topic,
+            region=region,
+        )
+    except Exception as e:
+        return {
+            "text": f"Unable to fetch news at the moment: {str(e)}",
+            "news_events": [],
+        }
+
+    if not events:
+        filter_desc = ""
+        if topic:
+            filter_desc += f" about {topic}"
+        if region:
+            filter_desc += f" in {region}"
+        return {
+            "text": f"No recent news events found{filter_desc}.",
+            "news_events": [],
+        }
+
+    news_dicts = [news_event_to_dict(e) for e in events]
+
+    response = f"Here are the {len(events)} latest news events:\n\n"
+    for i, event in enumerate(events, 1):
+        severity = f" (severity: {event.severity_score:.2f})" if event.severity_score else ""
+        response += f"{i}. {event.canonical_title}{severity}\n"
+        if event.summary:
+            response += f"   {event.summary[:150]}\n"
+        if event.topic or event.region:
+            response += f"   {event.topic or 'Unknown topic'} / {event.region or 'Unknown region'}\n"
+        response += "\n"
+
+    return {"text": response, "news_events": news_dicts}
 
 
 # Headless bridge (shared by CLI and API)
@@ -356,6 +429,20 @@ class NovaVoiceBridge:
                             "type": "tool.resources",
                             "resources": tool_result["resources"]
                         })
+
+            elif name == "fetch_latest_news":
+                tool_result = await fetch_latest_news_tool(
+                    topic=args.get("topic"),
+                    region=args.get("region"),
+                    limit=args.get("limit", 5),
+                )
+                result_text = tool_result["text"]
+                if tool_result.get("news_events"):
+                    await self.on_event({
+                        "type": "tool.news_events",
+                        "news_events": tool_result["news_events"]
+                    })
+
             else:
                 result_text = f"Unknown tool '{name}'."
 

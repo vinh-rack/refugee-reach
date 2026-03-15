@@ -7,6 +7,8 @@ from src.agents.aid_agent import (clear_captured_resources,
                                   create_aid_locator_agent,
                                   get_captured_resources)
 from src.agents.general_agent import create_general_chat_agent
+from src.agents.news_agent import (clear_captured_news, create_news_agent,
+                                   get_captured_news)
 from src.agents.nova_client import (get_general_model, get_orchestrator_model,
                                     get_sos_model)
 from src.agents.sos_agent import (clear_captured_sos_alert, create_sos_agent,
@@ -15,6 +17,7 @@ from src.agents.sos_agent import (clear_captured_sos_alert, create_sos_agent,
 _sos_agent = None
 _aid_agent = None
 _general_agent = None
+_news_agent = None
 _orchestrator = None
 
 
@@ -82,6 +85,14 @@ def get_general_agent():
     return _general_agent
 
 
+def get_news_agent():
+    """Get or create News agent (lazy initialization)."""
+    global _news_agent
+    if _news_agent is None:
+        _news_agent = create_news_agent(model=get_general_model())
+    return _news_agent
+
+
 @tool
 def route_to_sos_agent(user_message: str, location: Optional[Tuple[float, float]] = None) -> str:
     """
@@ -138,6 +149,23 @@ def route_to_general_chat_agent(user_message: str) -> str:
     return _extract_message_text(response.message)
 
 
+@tool
+def route_to_news_agent(user_message: str) -> str:
+    """
+    Route news-related requests to the News agent.
+    Use this for: latest news, current events, geopolitical updates, crisis news,
+    conflict updates, what's happening in a region, news about a topic.
+
+    Args:
+        user_message: The user's message asking about news
+
+    Returns:
+        Response from News agent with latest event summaries
+    """
+    response = get_news_agent()(user_message)
+    return _extract_message_text(response.message)
+
+
 def create_orchestrator_agent(model=None) -> Agent:
     """Create and configure the Orchestrator agent."""
 
@@ -145,7 +173,7 @@ def create_orchestrator_agent(model=None) -> Agent:
         model = get_orchestrator_model()
 
     agent = Agent(
-        tools=[route_to_sos_agent, route_to_aid_locator_agent, route_to_general_chat_agent],
+        tools=[route_to_sos_agent, route_to_aid_locator_agent, route_to_news_agent, route_to_general_chat_agent],
         model=model
     )
 
@@ -182,6 +210,7 @@ def process_user_input_strands(
         # Clear accumulators before running
         clear_captured_resources()
         clear_captured_sos_alert()
+        clear_captured_news()
 
         orchestrator = get_orchestrator()
         response = orchestrator(context)
@@ -189,6 +218,7 @@ def process_user_input_strands(
         # Collect captured data from sub-agent tool calls
         resources = get_captured_resources()
         sos_alert = get_captured_sos_alert()
+        news_events = get_captured_news()
 
         result = {
             "success": True,
@@ -202,6 +232,8 @@ def process_user_input_strands(
             result["resources"] = resources
         if sos_alert:
             result["sos_alert"] = sos_alert
+        if news_events:
+            result["news_events"] = news_events
 
         return result
 

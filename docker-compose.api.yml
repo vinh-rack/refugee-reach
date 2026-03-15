@@ -21,3 +21,13 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    networks:
+      - default
+      - news-alert-network
+
+networks:
+  default:
+    name: refugeereach-api-network
+  news-alert-network:
+    external: true
+    name: news-alert-network
