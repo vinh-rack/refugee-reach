@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from app.db.session import Base
 from app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import ArticleStatus
+from sqlalchemy import (DateTime, Enum, ForeignKey, Index, String, Text,
+                        UniqueConstraint)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class Article(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -33,7 +33,7 @@ class Article(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=True,
     )
 
-    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    external_id: Mapped[str] = mapped_column(Text, nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -43,7 +43,7 @@ class Article(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     raw_html_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     language: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    author: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    author: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

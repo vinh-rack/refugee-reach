@@ -1,10 +1,28 @@
 import json
+import time
+
 import pika
 from app.core.config import settings
 
-def publish(queue_name: str, payload: dict):
+CONNECT_RETRIES = 10
+CONNECT_DELAY = 3
+
+
+def _connect() -> pika.BlockingConnection:
     params = pika.URLParameters(settings.rabbitmq_url)
-    connection = pika.BlockingConnection(params)
+    for attempt in range(1, CONNECT_RETRIES + 1):
+        try:
+            return pika.BlockingConnection(params)
+        except pika.exceptions.AMQPConnectionError:
+            if attempt < CONNECT_RETRIES:
+                print(f"[rabbitmq] connection attempt {attempt}/{CONNECT_RETRIES} failed, retrying in {CONNECT_DELAY}s...")
+                time.sleep(CONNECT_DELAY)
+            else:
+                raise
+
+
+def publish(queue_name: str, payload: dict):
+    connection = _connect()
     channel = connection.channel()
     channel.queue_declare(queue=queue_name, durable=True)
     channel.basic_publish(
@@ -23,8 +41,7 @@ def consumer(
     inactivity_timeout: float = 3.0,
     max_messages: int | None = None,
 ):
-    params = pika.URLParameters(settings.rabbitmq_url)
-    connection = pika.BlockingConnection(params)
+    connection = _connect()
     channel = connection.channel()
     channel.queue_declare(queue=queue_name, durable=True)
 

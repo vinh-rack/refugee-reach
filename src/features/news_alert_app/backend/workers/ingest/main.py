@@ -1,6 +1,6 @@
-from pathlib import Path
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import feedparser
 
@@ -13,10 +13,10 @@ from app.db.session import SessionLocal
 from app.models.enums import SourceType
 from app.queue.constant import RAW_NEWS_QUEUE
 from app.queue.rabbitmq import publish
-from app.repos.article_repo import create_article, get_article_by_source_external_id
+from app.repos.article_repo import (create_article,
+                                    get_article_by_source_external_id)
 from app.repos.source_repo import list_active_sources
 from app.services.newsapi_client import fetch_newsapi_everything
-
 
 NEWSAPI_QUERY_PRIMARY = (
     "(ukraine OR russia OR israel OR gaza OR Iran OR taiwan OR nato "
@@ -121,6 +121,12 @@ def ingest_newsapi_source(db, source):
     print(f"[ingest][api][{source.slug}] inserted {inserted} new articles")
 
 
+import argparse
+import time
+
+INGEST_INTERVAL_SECONDS = 300  # 5 minutes between cycles
+
+
 def run():
     db = SessionLocal()
     try:
@@ -128,13 +134,33 @@ def run():
         print(f"[ingest] active sources: {len(sources)}")
         for source in sources:
             print(f"[ingest] source={source.slug} type={source.source_type}")
-            if source.source_type == SourceType.RSS and source.rss_url:
-                ingest_rss_source(db, source)
-            elif source.source_type == SourceType.API and source.slug == "newsapi-everything":
-                ingest_newsapi_source(db, source)
+            try:
+                if source.source_type == SourceType.RSS and source.rss_url:
+                    ingest_rss_source(db, source)
+                elif source.source_type == SourceType.API and source.slug == "newsapi-everything":
+                    ingest_newsapi_source(db, source)
+            except Exception as e:
+                print(f"[ingest] error processing source={source.slug}: {e}")
     finally:
         db.close()
 
 
+def run_loop():
+    print(f"[ingest] starting ingest loop (interval={INGEST_INTERVAL_SECONDS}s)")
+    while True:
+        try:
+            run()
+        except Exception as e:
+            print(f"[ingest] cycle error: {e}")
+        print(f"[ingest] sleeping {INGEST_INTERVAL_SECONDS}s until next cycle...")
+        time.sleep(INGEST_INTERVAL_SECONDS)
+
+
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--once", action="store_true", help="Run one cycle and exit")
+    args = parser.parse_args()
+    if args.once:
+        run()
+    else:
+        run_loop()
