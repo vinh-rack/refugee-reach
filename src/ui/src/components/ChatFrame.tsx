@@ -7,6 +7,8 @@ interface ChatFrameProps {
   onResourcesReceived?: (resources: any[]) => void;
   onSOSTriggered?: (alert: any) => void;
   onToolCall?: (toolCalls: any[]) => void;
+  onToggleMap?: () => void;
+  mapVisible?: boolean;
 }
 
 interface Message {
@@ -14,7 +16,7 @@ interface Message {
   content: string;
 }
 
-function ChatFrame({ onResourceRequest, onResourcesReceived, onSOSTriggered, onToolCall }: ChatFrameProps) {
+function ChatFrame({ onResourceRequest, onResourcesReceived, onSOSTriggered, onToolCall, onToggleMap, mapVisible }: ChatFrameProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -110,7 +112,14 @@ function ChatFrame({ onResourceRequest, onResourcesReceived, onSOSTriggered, onT
 
   return (
     <div className="chat-section">
-      <h2>Chat</h2>
+      <div className="chat-header">
+        <h2>Chat</h2>
+        {!mapVisible && onToggleMap && (
+          <button className="map-toggle-btn" onClick={onToggleMap} title="Show Map">
+            🗺️
+          </button>
+        )}
+      </div>
       <div className="chat-messages">
         {messages.map((msg, idx) => (
           <div key={idx} className={`chat-message ${msg.role}`}>

@@ -34,6 +34,8 @@ function App() {
   const [selectedResource, setSelectedResource] = useState<AidResource | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sosActive, setSOSActive] = useState(false);
+  const [mapVisible, setMapVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchLocation();
@@ -60,6 +62,7 @@ function App() {
   };
 
   const fetchNearbyResources = async (lat: number, lon: number) => {
+    setRefreshing(true);
     try {
       const response = await fetch(
         `http://localhost:8000/aid/nearby?latitude=${lat}&longitude=${lon}&radius_km=10&max_results=10`
@@ -67,10 +70,13 @@ function App() {
       const data = await response.json();
       if (data.success) {
         setResources(data.resources);
+        setMapVisible(true);
         console.log('Resources updated:', data.resources.length);
       }
     } catch (error) {
       console.error('Failed to fetch resources:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -83,6 +89,7 @@ function App() {
   const handleResourcesReceived = (agentResources: AidResource[]) => {
     console.log('Updating map with agent resources:', agentResources);
     setResources(agentResources);
+    setMapVisible(true);
     addNotification('success', `Found ${agentResources.length} nearby resources`);
   };
 
@@ -121,7 +128,7 @@ function App() {
       </header>
 
       <div className="main-content">
-        <div className="control-panel">
+        <div className={`control-panel ${mapVisible ? 'map-open' : ''}`}>
           <SOSButton location={location} active={sosActive} />
           <VoiceButton location={location} />
           <ChatFrame
@@ -130,16 +137,20 @@ function App() {
             onResourcesReceived={handleResourcesReceived}
             onSOSTriggered={handleSOSTriggered}
             onToolCall={handleToolCall}
+            onToggleMap={() => setMapVisible(!mapVisible)}
+            mapVisible={mapVisible}
           />
         </div>
 
-        <div className="map-panel">
+        <div className={`map-sidebar ${mapVisible ? 'visible' : ''}`}>
+          <button className="map-close-btn" onClick={() => setMapVisible(false)}>✕</button>
           <MapView
             userLocation={location}
             resources={resources}
             selectedResource={selectedResource}
             onResourceSelect={setSelectedResource}
             onRefresh={refreshResources}
+            refreshing={refreshing}
           />
         </div>
       </div>

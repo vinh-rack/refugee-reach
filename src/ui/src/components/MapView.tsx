@@ -32,6 +32,7 @@ interface MapViewProps {
   selectedResource: AidResource | null;
   onResourceSelect: (resource: AidResource | null) => void;
   onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 const userIcon = new L.Icon({
@@ -72,7 +73,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
 // Route cache: key = "lat1,lon1->lat2,lon2", value = Route
 const routeCache = new Map<string, Route>();
 
-function MapView({ userLocation, resources, selectedResource, onResourceSelect, onRefresh }: MapViewProps) {
+function MapView({ userLocation, resources, selectedResource, onResourceSelect, onRefresh, refreshing }: MapViewProps) {
   const [route, setRoute] = useState<Route | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -149,8 +150,8 @@ function MapView({ userLocation, resources, selectedResource, onResourceSelect, 
   return (
     <>
       {onRefresh && (
-        <button className="map-refresh-btn" onClick={onRefresh}>
-          {resources.length > 0 ? 'Refresh Resources' : 'Load Nearby Resources'}
+        <button className="map-refresh-btn" onClick={onRefresh} title="Refresh Resources" disabled={refreshing}>
+          <span className={refreshing ? 'spinning' : ''}>↻</span>
         </button>
       )}
 
