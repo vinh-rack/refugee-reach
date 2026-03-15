@@ -58,7 +58,11 @@ async def chat(request: ChatRequest):
     Process user message through the orchestrator agent
     """
     try:
-        location = get_device_location()
+        # Prefer client-provided device location, fall back to server-side IP
+        if request.latitude is not None and request.longitude is not None:
+            location = (request.latitude, request.longitude)
+        else:
+            location = get_device_location()
 
         result = process_user_input_strands(
             user_input=request.message,

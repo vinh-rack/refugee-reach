@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 class ChatRequest(BaseModel):
     message: str = Field(..., description="User's message")
+    latitude: Optional[float] = Field(None, description="Client device latitude")
+    longitude: Optional[float] = Field(None, description="Client device longitude")
 
 
 class ToolCall(BaseModel):

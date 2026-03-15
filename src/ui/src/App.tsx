@@ -50,11 +50,29 @@ function App() {
   };
 
   const fetchLocation = async () => {
+    // Try browser geolocation first — no timeout so the user can respond to the prompt
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          maximumAge: 60000
+        });
+      });
+      setLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      console.log('Using device location');
+      return;
+    } catch (err: any) {
+      // PERMISSION_DENIED = 1, POSITION_UNAVAILABLE = 2
+      console.warn('Device geolocation unavailable, falling back to IP:', err?.message);
+    }
+
+    // Fallback to IP-based location only after user denied or device can't provide it
     try {
       const response = await fetch('http://localhost:8000/location');
       const data = await response.json();
       if (data.success) {
         setLocation({ latitude: data.latitude, longitude: data.longitude });
+        console.log('Using IP-based location');
       }
     } catch (error) {
       console.error('Failed to fetch location:', error);

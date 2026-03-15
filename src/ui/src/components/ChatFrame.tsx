@@ -16,7 +16,7 @@ interface Message {
   content: string;
 }
 
-function ChatFrame({ onResourcesReceived, onSOSTriggered, onToolCall, onToggleMap, mapVisible }: ChatFrameProps) {
+function ChatFrame({ location, onResourcesReceived, onSOSTriggered, onToolCall, onToggleMap, mapVisible }: ChatFrameProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,7 +38,10 @@ function ChatFrame({ onResourcesReceived, onSOSTriggered, onToolCall, onToggleMa
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage })
+        body: JSON.stringify({
+          message: userMessage,
+          ...(location && { latitude: location.latitude, longitude: location.longitude })
+        })
       });
 
       const data = await response.json();
