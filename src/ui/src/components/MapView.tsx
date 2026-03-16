@@ -2,6 +2,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState } from 'react';
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
+import { API_BASE } from '../config';
 
 interface Location {
   latitude: number;
@@ -113,7 +114,7 @@ function MapView({ userLocation, resources, selectedResource, onResourceSelect, 
 
   const fetchRoute = async (from: Location, to: AidResource, cacheKey: string) => {
     try {
-      const response = await fetch('http://localhost:8000/route/to-resource', {
+      const response = await fetch(`${API_BASE}/route/to-resource`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

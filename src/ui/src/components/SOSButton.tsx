@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_BASE } from '../config';
 
 interface SOSButtonProps {
   location: { latitude: number; longitude: number } | null;
@@ -38,7 +39,7 @@ function SOSButton({ location, active, onSOSTriggered }: SOSButtonProps) {
     console.log('[SOS] Sending request to /sos with:', { latitude: location.latitude, longitude: location.longitude });
 
     try {
-      const response = await fetch('http://localhost:8000/sos', {
+      const response = await fetch(`${API_BASE}/sos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

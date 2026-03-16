@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { WS_BASE } from '../config';
 
 interface VoiceButtonProps {
     location: { latitude: number; longitude: number } | null;
@@ -40,7 +41,7 @@ function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceBut
 
     const startVoice = async () => {
         try {
-            const ws = new WebSocket('ws://localhost:8000/voice/stream');
+            const ws = new WebSocket(`${WS_BASE}/voice/stream`);
             wsRef.current = ws;
 
             ws.onopen = async () => {

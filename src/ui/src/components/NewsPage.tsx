@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { API_BASE } from '../config';
 
 interface NewsArticle {
   id: string;
@@ -31,8 +32,6 @@ interface NewsResponse {
   events: NewsEvent[];
   error?: string;
 }
-
-const API_BASE = 'http://localhost:8000';
 
 function formatDate(iso: string | null): string {
   if (!iso) return 'n/a';

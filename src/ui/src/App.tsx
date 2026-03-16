@@ -6,6 +6,7 @@ import MapView from './components/MapView';
 import NewsPage from './components/NewsPage';
 import SOSButton from './components/SOSButton';
 import VoiceButton from './components/VoiceButton';
+import { API_BASE } from './config';
 
 interface Location {
   latitude: number;
@@ -70,7 +71,7 @@ function App() {
 
     // Fallback to IP-based location only after user denied or device can't provide it
     try {
-      const response = await fetch('http://localhost:8000/location');
+      const response = await fetch(`${API_BASE}/location`);
       const data = await response.json();
       if (data.success) {
         setLocation({ latitude: data.latitude, longitude: data.longitude });
@@ -85,7 +86,7 @@ function App() {
     setRefreshing(true);
     try {
       const response = await fetch(
-        `http://localhost:8000/aid/nearby?latitude=${lat}&longitude=${lon}&radius_km=10&max_results=10`
+        `${API_BASE}/aid/nearby?latitude=${lat}&longitude=${lon}&radius_km=10&max_results=10`
       );
       const data = await response.json();
       if (data.success) {

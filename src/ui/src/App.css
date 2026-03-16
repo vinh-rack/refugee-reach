@@ -15,6 +15,7 @@ body {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  position: relative;
 }
 
 .app-header {
@@ -543,8 +544,10 @@ body {
   }
 
   .map-sidebar {
+    position: absolute;
     width: 100%;
-    top: 60px;
+    top: 0;
+    bottom: 0;
   }
 
   .map-sidebar.visible {

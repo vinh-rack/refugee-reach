@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { API_BASE } from '../config';
 
 interface ChatFrameProps {
   location: { latitude: number; longitude: number } | null;
@@ -35,7 +36,7 @@ function ChatFrame({ location, onResourcesReceived, onSOSTriggered, onToolCall, 
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
