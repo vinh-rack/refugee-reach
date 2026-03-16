@@ -8,43 +8,90 @@ interface VoiceButtonProps {
 }
 
 const JITTER_BUFFER_MS = 200;
+const TOUCH_DEBOUNCE_MS = 400;
+
+// Module-level session singleton to survive React StrictMode remounts
+interface ActiveSession {
+    ws: WebSocket | null;
+    audioContext: AudioContext | null;
+    playbackContext: AudioContext | null;
+    mediaStream: MediaStream | null;
+    jitterTimer: ReturnType<typeof setTimeout> | null;
+    pendingChunks: Float32Array[];
+    nextPlayTime: number;
+    jitterStarted: boolean;
+}
+
+let activeSession: ActiveSession | null = null;
+let lastToggleTimestamp = 0;
 
 function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceButtonProps) {
     const [isActive, setIsActive] = useState(false);
     const [status, setStatus] = useState('Click to speak');
     const [transcript, setTranscript] = useState('');
+
+    // Local refs that sync with module-level session
     const wsRef = useRef<WebSocket | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const playbackContextRef = useRef<AudioContext | null>(null);
-    const audioQueueRef = useRef<AudioBufferSourceNode[]>([]);
-    const nextPlayTimeRef = useRef<number>(0);
-    const jitterStartedRef = useRef(false);
+    const mediaStreamRef = useRef<MediaStream | null>(null);
     const jitterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingChunksRef = useRef<Float32Array[]>([]);
+    const nextPlayTimeRef = useRef<number>(0);
+    const jitterStartedRef = useRef(false);
 
+    // Sync local refs from existing session on mount (handles StrictMode remount)
     useEffect(() => {
+        if (activeSession) {
+            wsRef.current = activeSession.ws;
+            audioContextRef.current = activeSession.audioContext;
+            playbackContextRef.current = activeSession.playbackContext;
+            mediaStreamRef.current = activeSession.mediaStream;
+            jitterTimerRef.current = activeSession.jitterTimer;
+            pendingChunksRef.current = activeSession.pendingChunks;
+            nextPlayTimeRef.current = activeSession.nextPlayTime;
+            jitterStartedRef.current = activeSession.jitterStarted;
+            if (activeSession.ws && activeSession.ws.readyState === WebSocket.OPEN) {
+                setIsActive(true);
+                setStatus('Listening...');
+            }
+        }
+
         return () => {
-            if (wsRef.current) {
-                wsRef.current.close();
-            }
-            if (audioContextRef.current) {
-                audioContextRef.current.close();
-            }
-            if (playbackContextRef.current) {
-                playbackContextRef.current.close();
-            }
-            if (jitterTimerRef.current) {
-                clearTimeout(jitterTimerRef.current);
-            }
+            // Only cleanup if this is the last unmount (not StrictMode first cycle)
+            // The actual cleanup happens in stopVoice when user stops
         };
     }, []);
 
     const startVoice = async () => {
+        // Prevent duplicate sessions
+        if (activeSession) {
+            return;
+        }
+
         try {
             const ws = new WebSocket(`${WS_BASE}/voice/stream`);
             wsRef.current = ws;
 
             ws.onopen = async () => {
+                // Guard again — StrictMode remount could race here
+                if (activeSession) {
+                    ws.close();
+                    return;
+                }
+
+                // Initialize session singleton only after WS is confirmed open
+                activeSession = {
+                    ws,
+                    audioContext: null,
+                    playbackContext: null,
+                    mediaStream: null,
+                    jitterTimer: null,
+                    pendingChunks: [],
+                    nextPlayTime: 0,
+                    jitterStarted: false,
+                };
+
                 setIsActive(true);
                 setStatus('Listening...');
 
@@ -65,10 +112,16 @@ function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceBut
                     }
                 });
 
+                activeSession.mediaStream = stream;
+                mediaStreamRef.current = stream;
+
                 const audioContext = new AudioContext({ sampleRate: 16000 });
+                activeSession.audioContext = audioContext;
                 audioContextRef.current = audioContext;
 
                 const playbackContext = new AudioContext({ sampleRate: 24000 });
+                activeSession.playbackContext = playbackContext;
+                activeSession.nextPlayTime = 0;
                 playbackContextRef.current = playbackContext;
                 nextPlayTimeRef.current = 0;
 
@@ -128,10 +181,20 @@ function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceBut
             console.error('Voice error:', error);
             setStatus('Microphone access denied');
             setIsActive(false);
+            activeSession = null;
         }
     };
 
     const stopVoice = () => {
+        // Stop all MediaStream tracks first to release microphone
+        if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach(track => track.stop());
+            mediaStreamRef.current = null;
+        }
+        if (activeSession?.mediaStream) {
+            activeSession.mediaStream.getTracks().forEach(track => track.stop());
+        }
+
         if (wsRef.current) {
             wsRef.current.close();
             wsRef.current = null;
@@ -148,10 +211,14 @@ function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceBut
             clearTimeout(jitterTimerRef.current);
             jitterTimerRef.current = null;
         }
-        audioQueueRef.current = [];
+
         pendingChunksRef.current = [];
         jitterStartedRef.current = false;
         nextPlayTimeRef.current = 0;
+
+        // Clear module-level session
+        activeSession = null;
+
         setIsActive(false);
         setStatus('Click to speak');
     };
@@ -170,6 +237,10 @@ function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceBut
         const startTime = Math.max(currentTime, nextPlayTimeRef.current);
         source.start(startTime);
         nextPlayTimeRef.current = startTime + audioBuffer.duration;
+
+        if (activeSession) {
+            activeSession.nextPlayTime = nextPlayTimeRef.current;
+        }
     };
 
     const playAudio = (base64Audio: string) => {
@@ -189,17 +260,32 @@ function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceBut
             }
 
             pendingChunksRef.current.push(float32);
+            if (activeSession) {
+                activeSession.pendingChunks = pendingChunksRef.current;
+            }
 
             if (!jitterStartedRef.current) {
                 jitterStartedRef.current = true;
+                if (activeSession) {
+                    activeSession.jitterStarted = true;
+                }
                 jitterTimerRef.current = setTimeout(() => {
                     if (!playbackContextRef.current) return;
                     nextPlayTimeRef.current = playbackContextRef.current.currentTime;
+                    if (activeSession) {
+                        activeSession.nextPlayTime = nextPlayTimeRef.current;
+                    }
                     for (const chunk of pendingChunksRef.current) {
                         scheduleChunk(chunk);
                     }
                     pendingChunksRef.current = [];
+                    if (activeSession) {
+                        activeSession.pendingChunks = [];
+                    }
                 }, JITTER_BUFFER_MS);
+                if (activeSession) {
+                    activeSession.jitterTimer = jitterTimerRef.current;
+                }
             } else if (nextPlayTimeRef.current > 0) {
                 scheduleChunk(float32);
             }
@@ -209,6 +295,14 @@ function VoiceButton({ location, onResourcesReceived, onSOSTriggered }: VoiceBut
     };
 
     const toggleVoice = () => {
+        // iOS Safari fires touchend then synthetic click on single tap
+        // Debounce to ignore the second event within 400ms
+        const now = Date.now();
+        if (now - lastToggleTimestamp < TOUCH_DEBOUNCE_MS) {
+            return;
+        }
+        lastToggleTimestamp = now;
+
         if (isActive) {
             stopVoice();
         } else {

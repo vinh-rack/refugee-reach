@@ -4,6 +4,7 @@ import json
 import os
 import ssl
 import struct
+from datetime import datetime
 from typing import Optional, Tuple
 
 import pyaudio
@@ -11,8 +12,8 @@ import websockets
 from dotenv import load_dotenv
 
 from src.features.aid_locator import find_aid_resources
-from src.features.crisis_detector import (detect_crisis, send_sos_alert,
-                                          should_escalate)
+from src.features.crisis_detector import (CrisisReport, detect_crisis,
+                                          send_sos_alert, should_escalate)
 from src.features.location_service import get_device_location
 from src.features.news_service import get_latest_events, news_event_to_dict
 
@@ -34,7 +35,7 @@ TOOLS = [
     {
         "type": "function",
         "name": "detect_emergency",
-        "description": "Analyze if user is in emergency situation requiring immediate help. Use for: injuries, bleeding, danger, violence, life-threatening situations.",
+        "description": "Analyze if user is in emergency situation requiring immediate help. Use for: SOS requests, help me, injuries, bleeding, danger, violence, life-threatening situations, emergencies, urgent assistance needed.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -106,8 +107,9 @@ SESSION_INSTRUCTIONS = """
 
     Available tools:
     1. detect_emergency(user_message)
-    - Use when user mentions: injuries, bleeding, danger, violence, life-threatening situations
+    - ALWAYS use when user says: SOS, help, help me, emergency, I need help, urgent, danger, injured, hurt, bleeding, attack, violence, or any life-threatening situation
     - Analyzes crisis severity and provides immediate action steps
+    - Triggers SOS alerts automatically for critical/high urgency situations
 
     2. find_nearby_aid(resource_type)
     - Use when user needs: hospital, shelter, food, water, refugee_camp
@@ -122,7 +124,7 @@ SESSION_INSTRUCTIONS = """
     For greetings, general questions, and unclear requests — respond directly without calling a tool.
 
     Critical rules:
-    - For emergencies, ALWAYS call detect_emergency first, then suggest calling local emergency services
+    - For ANY mention of SOS, emergency, help, or danger, ALWAYS call detect_emergency first
     - If user mentions multiple needs, prioritize medical emergencies over other resources
     - Never make up resource locations - only use data from find_nearby_aid tool
     - If tools fail, provide general guidance and suggest contacting local authorities
@@ -149,9 +151,7 @@ def float32_to_pcm16(float32_array) -> bytes:
 # Tool implementations
 async def detect_emergency_tool(user_message: str, location: Optional[Tuple[float, float]] = None) -> dict:
     """Returns {"text": str, "sos_alert": dict|None}"""
-    from datetime import datetime
 
-    from src.features.crisis_detector import CrisisReport
 
     crisis_report = detect_crisis(user_message, location)
 
@@ -175,7 +175,7 @@ async def detect_emergency_tool(user_message: str, location: Optional[Tuple[floa
 
         # Trigger SOS alert like the orchestrator does
         if should_escalate(crisis_report):
-            alert = send_sos_alert(crisis_report, ["+1234567890"], use_sns=False)
+            alert = send_sos_alert(crisis_report, ["+1234567890"])
             sos_alert = {
                 "alert_sent": True,
                 "alert_id": alert.alert_id,
